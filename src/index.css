@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Titan One', 'Fredoka', cursive, sans-serif;
+    --font-body: 'Fredoka', 'Boogaloo', sans-serif;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: #0d0d0f;
+    color: #f3f4f6;
+  }
+}
+
+.font-carnival {
+  font-family: 'Titan One', cursive;
+  letter-spacing: 0.05em;
+}
+
+.font-fun {
+  font-family: 'Fredoka', sans-serif;
+}
+
+/* Old carnival wood & metal vintage styling */
+.wood-panel {
+  background: linear-gradient(180deg, #5a381e 0%, #3e2410 50%, #291508 100%);
+  border: 3px solid #d49a43;
+  box-shadow: 0 8px 0 #180c05, 0 12px 20px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,220,150,0.3);
+}
+
+.wood-button {
+  background: linear-gradient(180deg, #c27a2b 0%, #8f4c12 50%, #683009 100%);
+  border: 2px solid #f6cf70;
+  box-shadow: 0 5px 0 #3a1904, 0 8px 12px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.4);
+  transition: all 0.1s ease;
+}
+
+.wood-button:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #3a1904, 0 3px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.2);
+}
+
+.metal-badge {
+  background: linear-gradient(180deg, #8590a6 0%, #4b5563 50%, #2f3640 100%);
+  border: 2px solid #cbd5e1;
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.5), 0 3px 6px rgba(0,0,0,0.4);
+}
+
+.gold-text {
+  background: linear-gradient(180deg, #fff7c2 0%, #fbbf24 50%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.8));
+}
+
+.carnival-glow {
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.6));
+}
+
+/* Custom scrollbar for modals */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1f1610;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #78350f;
+  border-radius: 4px;
+  border: 1px solid #b45309;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9a3412;
+}
