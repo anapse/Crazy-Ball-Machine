@@ -811,8 +811,39 @@ export class GameEngine {
       ctx.stroke();
       ctx.restore();
 
-      // 4. Draw Active Metallic Pinball at aim position
-      this.renderMetallicSphere(ctx, aimX, aimY, 15, this.activePowerUp, true);
+      // 4. Draw Active Metallic Pinball at aim position using official bolas.png [0,0]
+      const drawn = spriteManager.drawBall(ctx, aimX, aimY, 13);
+      if (!drawn) {
+        this.renderMetallicSphere(ctx, aimX, aimY, 13, 'standard', true);
+      }
+      if (this.activePowerUp) {
+        // Draw overlay for active power-up at aim position
+        if (this.activePowerUp === 'fast') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(249, 115, 22, 0.85)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(aimX, aimY, 15, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else if (this.activePowerUp === 'shield') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.85)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(aimX, aimY, 16, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else if (this.activePowerUp === 'explosive') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(aimX, aimY, 15, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
 
       // 5. Instruction banner above ball in the clear space
       ctx.save();
@@ -1523,7 +1554,7 @@ export class GameEngine {
       ctx.fill();
     }
 
-    // 2. Base Ball: ALWAYS the exact official standard metallic ball sprite (pelota.png)
+    // 2. Base Ball: ALWAYS the exact official standard metallic ball sprite (bolas.png [col=0, row=0])
     const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius);
     if (!drawn) {
       this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, 'standard', false);

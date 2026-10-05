@@ -381,21 +381,15 @@ class SpriteManager {
     return this.drawSpriteProportional(ctx, 'trabesanos', col, 0, 3, 1, (x1 + x2) / 2, (y1 + y2) / 2, size, size, 0);
   }
 
-  // 11. Pelota / Metallic Ball (Always the official standard metallic ball sprite)
+  // 11. Pelota / Metallic Ball (Always the official standard metallic ball: bolas.png [col=0, row=0])
   public drawBall(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
     r: number
   ): boolean {
-    const imgPelota = this.images['pelota'];
-    if (imgPelota && imgPelota.complete && imgPelota.naturalWidth > 0) {
-      const size = Math.max(34, r * 2.8);
-      ctx.drawImage(imgPelota, x - size / 2, y - size / 2, size, size);
-      return true;
-    }
-    // Fallback: Cell [0, 0] in bolas.png is the standard official metallic ball
-    return this.drawSpriteProportional(ctx, 'bolas', 0, 0, 4, 4, x, y, Math.max(34, r * 2.8), Math.max(34, r * 2.8), 0);
+    const size = Math.max(28, r * 2.5);
+    return this.drawSpriteProportional(ctx, 'bolas', 0, 0, 4, 4, x, y, size, size, 0);
   }
 
   // 12. Pipe / Tubería (tuberias_dianas_bombas.png: Row 0, Col 0)
