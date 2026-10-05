@@ -683,7 +683,7 @@ export class LevelManager {
       title: `Máquina Pinball: Nivel ${levelNumber}`,
       worldWidth: width,
       worldHeight: height,
-      startingBalls: 8 + Math.floor(levelNumber / 2),
+      startingBalls: 5,
       goal: { type: 'destroy_count', target: 6, current: 0, description: 'Destruye las 6 cajas de la máquina' },
       channels: this.getChannels(),
       objects: allObjects,
@@ -764,7 +764,7 @@ export class LevelManager {
       title: `Máquina Pinball: Nivel ${levelNumber}`,
       worldWidth: width,
       worldHeight: height,
-      startingBalls: 8 + Math.floor(levelNumber / 2),
+      startingBalls: 5,
       goal: {
         type: 'destroy_count',
         target: 6,

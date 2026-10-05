@@ -132,10 +132,13 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
 
         {/* Balls Left & Controls */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          <div className="wood-panel px-1.5 py-0.5 rounded-lg flex items-center gap-1 border-amber-600/80 shadow-md">
-            <SpriteIcon name="ball" className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-carnival text-amber-200 whitespace-nowrap font-extrabold">x{ballsLeft}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="wood-panel px-2 py-0.5 rounded-lg flex items-center gap-1.5 border-amber-600/80 shadow-md bg-stone-950/80" title="Bolas restantes">
+            <SpriteIcon name="ball" className="w-4 h-4" />
+            <div className="flex flex-col">
+              <span className="text-[7px] uppercase font-black text-amber-400/80 leading-none">BOLAS</span>
+              <span className="text-xs font-carnival text-amber-100 whitespace-nowrap font-extrabold leading-tight">{ballsLeft}</span>
+            </div>
           </div>
 
           <button

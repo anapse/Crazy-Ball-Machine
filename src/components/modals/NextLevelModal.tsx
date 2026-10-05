@@ -84,6 +84,15 @@ export const NextLevelModal: React.FC<NextLevelModalProps> = ({
               {state.score.toLocaleString()}
             </span>
           </div>
+
+          <div className="flex items-center justify-between w-full border-t border-amber-950/80 pt-1">
+            <span className="text-emerald-400 font-bold uppercase text-[10px]">
+              RECOMPENSA:
+            </span>
+            <span className="font-carnival text-emerald-300 font-bold text-sm flex items-center gap-1">
+              +1 BOLA ⚪
+            </span>
+          </div>
         </div>
 
         {/* Automatic Progress Countdown Indicator */}

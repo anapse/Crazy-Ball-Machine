@@ -128,7 +128,7 @@ export class GameEngine {
     this.levelConfig = LevelManager.getLevel(levelNum);
     this.objects = JSON.parse(JSON.stringify(this.levelConfig.objects));
     this.balls = [];
-    this.ballsLeft = this.levelConfig.startingBalls;
+    this.ballsLeft = 5; // Starts every fresh run with exactly 5 balls
     this.totalBallsUsed = 0;
     this.score = 0;
     this.combo = 0;
@@ -157,7 +157,7 @@ export class GameEngine {
     this.levelConfig = LevelManager.getLevel(nextLvl);
     this.objects = JSON.parse(JSON.stringify(this.levelConfig.objects));
     this.balls = [];
-    this.ballsLeft += this.levelConfig.startingBalls;
+    this.ballsLeft += 1; // Exactly +1 bonus ball for completing the level, keeping all previous remaining balls!
     this.camera.reset();
     this.phase = 'AIMING';
 
