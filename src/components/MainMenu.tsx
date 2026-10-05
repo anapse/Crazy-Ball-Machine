@@ -21,7 +21,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onToggleSound,
 }) => {
   return (
-    <div className="absolute inset-0 flex flex-col justify-between p-4 select-none bg-stone-950/80 backdrop-blur-sm z-30">
+    <div className="absolute inset-0 flex flex-col justify-between p-4 select-none bg-transparent z-30">
       {/* Top action bar: Contact on Top-Left, Sound on Top-Right */}
       <div className="flex items-center justify-between w-full">
         <button

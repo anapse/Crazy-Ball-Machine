@@ -482,8 +482,9 @@ export class GameEngine {
     ctx.save();
     ctx.translate(0, -this.camera.y);
 
-    // Single Official fondo.png background sprite covering the machine world height
-    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.WORLD_HEIGHT);
+    // Single Official fondo.png or fondomenu.png background sprite covering the machine world height
+    const isMenu = this.phase === 'MENU';
+    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.WORLD_HEIGHT, isMenu);
 
     // Render Background Details & Machinery
     this.renderMachineStructure(ctx);
@@ -689,8 +690,9 @@ export class GameEngine {
   }
 
   private renderCarnivalBackboard(ctx: CanvasRenderingContext2D) {
-    // Official fondo.png background sprite
-    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.VIEWPORT_HEIGHT);
+    // Official fondo.png or fondomenu.png background sprite
+    const isMenu = this.phase === 'MENU';
+    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.VIEWPORT_HEIGHT, isMenu);
 
     // Machine Side Metal Rails
     ctx.fillStyle = '#475569';
@@ -897,7 +899,6 @@ export class GameEngine {
       case 'ramp': {
         const drawn = spriteManager.drawPlank(ctx, obj.x, obj.y, obj.x2, obj.y2, obj.thickness);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] trabesanos');
           ctx.strokeStyle = '#b45309';
           ctx.lineWidth = obj.thickness;
           ctx.lineCap = 'round';
@@ -921,7 +922,6 @@ export class GameEngine {
         const rad = (obj as any).radius || 18;
         const drawn = spriteManager.drawGearOrPropeller(ctx, 'bumper', obj.angle || 0, obj.x, obj.y, rad);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] aspa_engranaje');
           ctx.save();
           ctx.translate(obj.x, obj.y);
 
@@ -960,7 +960,6 @@ export class GameEngine {
         const len = (obj as any).armLength || 40;
         const drawn = spriteManager.drawGearOrPropeller(ctx, 'windmill', obj.angle || 0, obj.x, obj.y, len);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] aspa_engranaje');
           ctx.save();
           ctx.translate(obj.x, obj.y);
           ctx.rotate(obj.angle || 0);
@@ -1001,7 +1000,6 @@ export class GameEngine {
         const forceY = (obj as any).forceY;
         const drawn = spriteManager.drawArrow(ctx, (obj as any).angle || 0, obj.x, obj.y, w, h, forceX, forceY);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] flechas');
           ctx.save();
           ctx.translate(obj.x, obj.y);
           ctx.rotate((obj as any).angle || 0);
@@ -1081,7 +1079,6 @@ export class GameEngine {
 
         const drawn = spriteManager.drawPlank(ctx, obj.x, obj.y, x2, y2, obj.thickness || 12);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] trabesanos');
           // Wooden/brass moving plank fallback
           ctx.strokeStyle = '#92400e';
           ctx.lineWidth = obj.thickness || 12;
@@ -1128,7 +1125,6 @@ export class GameEngine {
 
         const drawn = spriteManager.drawPlank(ctx, obj.x, obj.y, x2, y2, obj.thickness || 12);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] trabesanos');
           // Mechanical switch arm fallback
           ctx.strokeStyle = obj.leverActivated ? '#38bdf8' : '#e11d48';
           ctx.lineWidth = obj.thickness || 12;
@@ -1196,7 +1192,6 @@ export class GameEngine {
       case 'trampoline': {
         const drawn = spriteManager.drawTrampoline(ctx, obj.angle || 0, obj.x, obj.y, obj.width, obj.height);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] trampolin');
           ctx.save();
           ctx.translate(obj.x, obj.y);
           ctx.rotate(obj.angle || 0);
@@ -1231,7 +1226,6 @@ export class GameEngine {
       case 'oil': {
         const drawn = spriteManager.drawOil(ctx, obj.x, obj.y, obj.width, obj.height, obj.id);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] aceite');
           ctx.save();
           ctx.translate(obj.x, obj.y);
           ctx.rotate(obj.angle || 0);
@@ -1288,7 +1282,6 @@ export class GameEngine {
       case 'gear': {
         const drawn = spriteManager.drawGearOrPropeller(ctx, 'gear', obj.angle || 0, obj.x, obj.y, obj.radius);
         if (!drawn) {
-          console.warn('[SPRITE ERROR] aspa_engranaje');
           ctx.save();
           ctx.translate(obj.x, obj.y);
           ctx.rotate(obj.angle || 0);

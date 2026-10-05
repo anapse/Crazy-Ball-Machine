@@ -7,6 +7,7 @@ class SpriteManager {
 
   private assetFiles: Record<string, string> = {
     fondo: 'fondo.png',
+    fondomenu: 'fondomenu.png',
     logo: 'logo.png',
     ladrillos: 'ladrillos.png',
     cajas: 'cajas.png',
@@ -116,9 +117,10 @@ class SpriteManager {
 
   // --- RENDERING HELPERS ---
 
-  // 1. Full Background (fondo.png)
-  public drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    const img = this.images['fondo'];
+  // 1. Full Background (fondo.png / fondomenu.png)
+  public drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, isMenu: boolean = false) {
+    const key = isMenu ? 'fondomenu' : 'fondo';
+    const img = this.images[key];
     if (img && img.complete && img.naturalWidth > 0) {
       const tileH = (w / img.naturalWidth) * img.naturalHeight;
       for (let y = 0; y < h; y += tileH) {
@@ -126,7 +128,6 @@ class SpriteManager {
       }
       return true;
     }
-    console.error('[SPRITE ERROR] fondo');
     return false;
   }
 
@@ -137,7 +138,6 @@ class SpriteManager {
       ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
       return true;
     }
-    console.error('[SPRITE ERROR] logo');
     return false;
   }
 
@@ -166,11 +166,7 @@ class SpriteManager {
 
     // Centered block with visual dimensions separate from physics bounds
     // Block size is drawn beautifully as a square layout of 44x44 centered over block
-    const success = this.drawSpriteProportional(ctx, 'ladrillos', col, row, 4, 2, x, y, 44, 44, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] ladrillos');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'ladrillos', col, row, 4, 2, x, y, 44, 44, 0);
   }
 
   // 4. Cajas (cajas.png: 2 rows x 4 cols grid)
@@ -208,11 +204,7 @@ class SpriteManager {
     }
 
     // Boxes must be clearly visible, centered, and proportional (size 54x54)
-    const success = this.drawSpriteProportional(ctx, 'cajas', col, row, 4, 2, x, y, 54, 54, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] cajas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'cajas', col, row, 4, 2, x, y, 54, 54, 0);
   }
 
   // 5. Globos (globos.png: 4 rows x 4 cols grid)
@@ -237,11 +229,7 @@ class SpriteManager {
     }
 
     // Globos must have premium visual presence (size 56x56)
-    const success = this.drawSpriteProportional(ctx, 'globos', col, row, 4, 4, x, y, 56, 56, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] globos');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'globos', col, row, 4, 4, x, y, 56, 56, 0);
   }
 
   // 6. Flechas (flechas.png: 2 rows x 3 cols grid)
@@ -294,11 +282,7 @@ class SpriteManager {
 
     // Visual arrows are drawn perfectly with zero rotation because orientation is already in sheet.
     // Scale is set to 48x48 so they are highly visible and professional.
-    const success = this.drawSpriteProportional(ctx, 'flechas', col, row, 3, 2, x, y, 48, 48, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] flechas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'flechas', col, row, 3, 2, x, y, 48, 48, 0);
   }
 
   // 7. Aceite (aceite.png: 1 row x 3 cols)
@@ -314,11 +298,7 @@ class SpriteManager {
     const col = numericId % 3;
 
     // Oil is flat horizontal centered puddle. Drawn with size 95x95 so puddle maintains its flat aspect ratio
-    const success = this.drawSpriteProportional(ctx, 'aceite', col, 0, 3, 1, x, y, 95, 95, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] aceite');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'aceite', col, 0, 3, 1, x, y, 95, 95, 0);
   }
 
   // 8. Gear / Propeller / Shield Bumper (aspa_engranaje.png: 1 row x 3 items)
@@ -343,11 +323,7 @@ class SpriteManager {
       size = r * 2.6; // High visibility circular bumper
     }
 
-    const success = this.drawSpriteProportional(ctx, 'aspa_engranaje', col, 0, 3, 1, x, y, size, size, angle);
-    if (!success) {
-      console.error('[SPRITE ERROR] aspa_engranaje');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'aspa_engranaje', col, 0, 3, 1, x, y, size, size, angle);
   }
 
   // 9. Trampolin (trampolin.png: 1 row x 3 items)
@@ -365,11 +341,7 @@ class SpriteManager {
     else col = 0; // Horizontal
 
     // Trampolines must use their corresponding sprite cell drawn at 64x64 with zero rotation
-    const success = this.drawSpriteProportional(ctx, 'trampolin', col, 0, 3, 1, x, y, 64, 64, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] trampolin');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'trampolin', col, 0, 3, 1, x, y, 64, 64, 0);
   }
 
   // 10. Trabesaños / Wooden Plank (trabesanos.png: 1 row x 3 items)
@@ -398,11 +370,7 @@ class SpriteManager {
     // Set fixed premium visual thickness so maderas are never squished to invisible lines
     const visualThickness = Math.max(16, thickness * 1.5);
 
-    const success = this.drawSpriteProportional(ctx, 'trabesanos', col, 0, 3, 1, (x1 + x2) / 2, (y1 + y2) / 2, len, visualThickness, angle);
-    if (!success) {
-      console.error('[SPRITE ERROR] trabesanos');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'trabesanos', col, 0, 3, 1, (x1 + x2) / 2, (y1 + y2) / 2, len, visualThickness, angle);
   }
 
   // 11. Pelota / Metallic Ball (bolas.png 4x4 grid or pelota.png)
@@ -439,11 +407,7 @@ class SpriteManager {
       default:          col = 0; row = 0; break;
     }
 
-    const success = this.drawSpriteProportional(ctx, 'bolas', col, row, 4, 4, x, y, r * 2.1, r * 2.1, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] bolas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'bolas', col, row, 4, 4, x, y, r * 2.1, r * 2.1, 0);
   }
 
   // 12. Pipe / Tubería (tuberias_dianas_bombas.png: Row 0, Col 0)
@@ -463,11 +427,7 @@ class SpriteManager {
     // Apply robust visual radius (pipe segment)
     const visualRadius = Math.max(16, radius * 1.3);
 
-    const success = this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 0, 0, 6, 2, (x1 + x2) / 2, (y1 + y2) / 2, len, visualRadius * 2, angle);
-    if (!success) {
-      console.error('[SPRITE ERROR] tuberias_dianas_bombas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 0, 0, 6, 2, (x1 + x2) / 2, (y1 + y2) / 2, len, visualRadius * 2, angle);
   }
 
   // 13. Target / Diana (tuberias_dianas_bombas.png: Row 1, Col 0 Red / Col 2 Yellow)
@@ -481,11 +441,7 @@ class SpriteManager {
     const col = isSpecial ? 2 : 0; // Col 2 = Yellow, Col 0 = Red
 
     // Drawn with premium visual size (46x46)
-    const success = this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', col, 1, 6, 2, x, y, 46, 46, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] tuberias_dianas_bombas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', col, 1, 6, 2, x, y, 46, 46, 0);
   }
 
   // 14. Bomb / Bomba (tuberias_dianas_bombas.png: Row 1, Col 4)
@@ -496,11 +452,7 @@ class SpriteManager {
     r: number
   ): boolean {
     // Bomb is drawn with high quality visual size (44x44)
-    const success = this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 4, 1, 6, 2, x, y, 44, 44, 0);
-    if (!success) {
-      console.error('[SPRITE ERROR] tuberias_dianas_bombas');
-    }
-    return success;
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 4, 1, 6, 2, x, y, 44, 44, 0);
   }
 }
 
