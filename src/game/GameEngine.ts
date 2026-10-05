@@ -27,6 +27,10 @@ export class GameEngine {
   public camera: Camera = new Camera();
   public physics: PhysicsEngine = new PhysicsEngine();
 
+  // Dynamic Viewport Dimensions
+  public viewportWidth: number = GAME_CONSTANTS.VIEWPORT_WIDTH;
+  public viewportHeight: number = GAME_CONSTANTS.VIEWPORT_HEIGHT_GAMEPLAY;
+
   // State
   private phase: GameStatePhase = 'MENU';
   private levelConfig: LevelConfig = LevelManager.getLevel(1);
@@ -44,6 +48,7 @@ export class GameEngine {
   private tapCooldownTimer: number = 0; // Cooldown for manual emergency tap push
   private tapVisualEffect: { x: number; y: number; life: number } | null = null;
   private activePowerUp: BallType | null = null;
+  private playerName: string = storage.getPlayerName() || '';
   private inventory: PowerUpInventory = {
     double: 0,
     triple: 0,
@@ -62,6 +67,18 @@ export class GameEngine {
 
   constructor(onStateChange?: (snapshot: GameSnapshot) => void) {
     if (onStateChange) this.onStateChange = onStateChange;
+  }
+
+  public setPlayerName(name: string) {
+    this.playerName = name;
+    storage.setPlayerName(name);
+    this.emitState();
+  }
+
+  public setViewportDimensions(w: number, h: number) {
+    this.viewportWidth = w;
+    this.viewportHeight = h;
+    this.camera.setViewportHeight(h);
   }
 
   public attachCanvas(canvas: HTMLCanvasElement) {
@@ -93,11 +110,16 @@ export class GameEngine {
       objectsDestroyedCount: this.objectsDestroyedCount,
       totalBallsUsed: this.totalBallsUsed,
       isSoundMuted: soundManager.getIsMuted(),
+      playerName: this.playerName,
     });
   }
 
   // --- Game Lifecycle ---
-  public startNewGame(levelNum = 1) {
+  public startNewGame(levelNum = 1, playerName?: string) {
+    if (playerName) {
+      this.playerName = playerName;
+      storage.setPlayerName(playerName);
+    }
     this.levelConfig = LevelManager.getLevel(levelNum);
     this.objects = JSON.parse(JSON.stringify(this.levelConfig.objects));
     this.balls = [];
@@ -197,15 +219,28 @@ export class GameEngine {
 
     // Spawn balls physically according to type
     if (ballType === 'double') {
-      this.spawnBall(spawnX - 14, spawnY, 'double', '#facc15');
-      this.spawnBall(spawnX + 14, spawnY, 'double', '#facc15');
+      const b1 = this.spawnBall(spawnX - 14, spawnY, 'double', '#facc15');
+      b1.vx = -40 + (Math.random() - 0.5) * 20;
+      b1.vy = 120 + Math.random() * 30;
+
+      const b2 = this.spawnBall(spawnX + 14, spawnY, 'double', '#facc15');
+      b2.vx = 40 + (Math.random() - 0.5) * 20;
+      b2.vy = 120 + Math.random() * 30;
     } else if (ballType === 'triple') {
-      this.spawnBall(spawnX - 18, spawnY, 'triple', '#38bdf8');
-      this.spawnBall(spawnX, spawnY - 5, 'triple', '#38bdf8');
-      this.spawnBall(spawnX + 18, spawnY, 'triple', '#38bdf8');
+      const b1 = this.spawnBall(spawnX - 18, spawnY, 'triple', '#38bdf8');
+      b1.vx = -60 + (Math.random() - 0.5) * 20;
+      b1.vy = 120 + Math.random() * 30;
+
+      const b2 = this.spawnBall(spawnX, spawnY - 8, 'triple', '#38bdf8');
+      b2.vx = (Math.random() - 0.5) * 20;
+      b2.vy = 145 + Math.random() * 30;
+
+      const b3 = this.spawnBall(spawnX + 18, spawnY, 'triple', '#38bdf8');
+      b3.vx = 60 + (Math.random() - 0.5) * 20;
+      b3.vy = 120 + Math.random() * 30;
     } else if (ballType === 'fast') {
       const b = this.spawnBall(spawnX, spawnY, 'fast', '#f97316');
-      b.vy = 320; // strong initial speed
+      b.vy = 420; // High initial velocity
     } else if (ballType === 'explosive') {
       this.spawnBall(spawnX, spawnY, 'explosive', '#ef4444');
     } else if (ballType === 'shield') {
@@ -279,8 +314,8 @@ export class GameEngine {
     const clientX = e.clientX - rect.left;
     const clientY = e.clientY - rect.top;
 
-    const scaleX = GAME_CONSTANTS.WORLD_WIDTH / rect.width;
-    const scaleY = GAME_CONSTANTS.VIEWPORT_HEIGHT / rect.height;
+    const scaleX = this.viewportWidth / rect.width;
+    const scaleY = this.viewportHeight / rect.height;
 
     const worldX = clientX * scaleX;
     const worldY = clientY * scaleY + this.camera.y;
@@ -466,14 +501,14 @@ export class GameEngine {
   private render() {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx;
-    const w = GAME_CONSTANTS.WORLD_WIDTH;
-    const h = GAME_CONSTANTS.VIEWPORT_HEIGHT;
+    const w = this.viewportWidth;
+    const h = this.viewportHeight;
 
     // Reset transform & clear
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Apply scaling to fit logical resolution 450x800
+    // Apply scaling to fit logical resolution (450x720 in gameplay, 450x800 in menu)
     const scaleX = this.canvas.width / w;
     const scaleY = this.canvas.height / h;
     ctx.scale(scaleX, scaleY);
@@ -692,16 +727,16 @@ export class GameEngine {
   private renderCarnivalBackboard(ctx: CanvasRenderingContext2D) {
     // Official fondo.png or fondomenu.png background sprite
     const isMenu = this.phase === 'MENU';
-    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.VIEWPORT_HEIGHT, isMenu);
+    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, this.viewportHeight, isMenu);
 
     // Machine Side Metal Rails
     ctx.fillStyle = '#475569';
-    ctx.fillRect(0, 0, 14, GAME_CONSTANTS.VIEWPORT_HEIGHT);
-    ctx.fillRect(GAME_CONSTANTS.WORLD_WIDTH - 14, 0, 14, GAME_CONSTANTS.VIEWPORT_HEIGHT);
+    ctx.fillRect(0, 0, 14, this.viewportHeight);
+    ctx.fillRect(GAME_CONSTANTS.WORLD_WIDTH - 14, 0, 14, this.viewportHeight);
 
     // Metal rivet stripes
     ctx.fillStyle = '#94a3b8';
-    for (let y = 10; y < GAME_CONSTANTS.VIEWPORT_HEIGHT; y += 30) {
+    for (let y = 10; y < this.viewportHeight; y += 30) {
       ctx.beginPath();
       ctx.arc(7, y, 3, 0, Math.PI * 2);
       ctx.arc(GAME_CONSTANTS.WORLD_WIDTH - 7, y, 3, 0, Math.PI * 2);
@@ -709,18 +744,10 @@ export class GameEngine {
     }
   }
 
-  private renderMachineStructure(ctx: CanvasRenderingContext2D) {
-    // Cross-bracing wooden scaffolding in machine background
-    ctx.strokeStyle = 'rgba(60, 30, 10, 0.45)';
-    ctx.lineWidth = 14;
-    for (let y = 150; y < GAME_CONSTANTS.WORLD_HEIGHT; y += 240) {
-      ctx.beginPath();
-      ctx.moveTo(15, y);
-      ctx.lineTo(GAME_CONSTANTS.WORLD_WIDTH - 15, y + 200);
-      ctx.moveTo(GAME_CONSTANTS.WORLD_WIDTH - 15, y);
-      ctx.lineTo(15, y + 200);
-      ctx.stroke();
-    }
+  private renderMachineStructure(_ctx: CanvasRenderingContext2D) {
+    // The official fondo.png already contains the machine's wood structure.
+    // Do not draw procedural X/cross braces over it: they obscure the play field
+    // and visually compete with the real sprites.
   }
 
   private renderTopLauncher(ctx: CanvasRenderingContext2D) {
@@ -1315,9 +1342,9 @@ export class GameEngine {
       }
 
       case 'balloon': {
-        const drawn = spriteManager.drawBalloon(ctx, obj.color, obj.x, obj.y, obj.radius);
+        const floatY = Math.sin(Date.now() * 0.002 + obj.floatOffset) * 5;
+        const drawn = spriteManager.drawBalloon(ctx, obj.color, obj.x, obj.y + floatY, obj.radius);
         if (!drawn) {
-          const floatY = Math.sin(Date.now() * 0.003 + obj.floatOffset) * 4;
           ctx.save();
           ctx.translate(obj.x, obj.y + floatY);
 
@@ -1473,17 +1500,124 @@ export class GameEngine {
   }
 
   private renderBall(ctx: CanvasRenderingContext2D, ball: Ball) {
-    // Draw ball trail
+    const time = Date.now() * 0.005;
+
+    // 1. Draw ball trail
     for (const t of ball.trail) {
-      ctx.fillStyle = `rgba(251, 191, 36, ${t.alpha * 0.4})`;
+      const trailColor =
+        ball.type === 'fast'
+          ? `rgba(249, 115, 22, ${t.alpha * 0.5})`
+          : ball.type === 'explosive'
+          ? `rgba(239, 68, 68, ${t.alpha * 0.5})`
+          : ball.type === 'shield'
+          ? `rgba(168, 85, 247, ${t.alpha * 0.5})`
+          : ball.type === 'triple'
+          ? `rgba(56, 189, 248, ${t.alpha * 0.5})`
+          : ball.type === 'double'
+          ? `rgba(250, 204, 21, ${t.alpha * 0.5})`
+          : `rgba(251, 191, 36, ${t.alpha * 0.4})`;
+
+      ctx.fillStyle = trailColor;
       ctx.beginPath();
       ctx.arc(t.x, t.y, ball.radius * 0.7, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius, ball.type);
+    // 2. Base Ball: ALWAYS the exact official standard metallic ball sprite (pelota.png)
+    const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius);
     if (!drawn) {
-      this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, ball.type, false);
+      this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, 'standard', false);
+    }
+
+    // 3. Power-Up Overlays: Drawn ON TOP of the normal ball without replacing its sprite
+    if (ball.type === 'fast') {
+      // Speed Aura & Wind Streaks overlay
+      ctx.save();
+      const pulse = 1 + Math.sin(time * 6) * 0.15;
+      ctx.strokeStyle = 'rgba(249, 115, 22, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius * pulse + 2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Trailing speed streak
+      const spd = Math.hypot(ball.vx, ball.vy);
+      if (spd > 40) {
+        const ang = Math.atan2(ball.vy, ball.vx);
+        ctx.strokeStyle = 'rgba(253, 186, 116, 0.8)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(ball.x - Math.cos(ang) * (ball.radius + 6), ball.y - Math.sin(ang) * (ball.radius + 6));
+        ctx.lineTo(ball.x - Math.cos(ang) * (ball.radius + 18), ball.y - Math.sin(ang) * (ball.radius + 18));
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (ball.type === 'shield' || ball.isImmune) {
+      // Spherical Energy Forcefield Shield overlay
+      ctx.save();
+      const pulse = 1 + Math.sin(time * 4) * 0.1;
+      const grad = ctx.createRadialGradient(ball.x, ball.y, ball.radius * 0.5, ball.x, ball.y, ball.radius + 7);
+      grad.addColorStop(0, 'rgba(168, 85, 247, 0.05)');
+      grad.addColorStop(0.7, 'rgba(192, 132, 252, 0.25)');
+      grad.addColorStop(1, 'rgba(168, 85, 247, 0.75)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, (ball.radius + 5) * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(216, 180, 254, 0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    } else if (ball.type === 'explosive') {
+      // Danger Pulsing Flare & Spark Fuse overlay
+      ctx.save();
+      const pulse = 1 + Math.sin(time * 8) * 0.18;
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius * pulse + 1, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Small burning spark on top edge
+      const sparkX = ball.x + Math.cos(time * 5) * (ball.radius * 0.7);
+      const sparkY = ball.y - ball.radius * 0.8 + Math.sin(time * 7) * 2;
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(sparkX, sparkY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (ball.type === 'double' || ball.type === 'triple') {
+      // Orbiting Sparkles overlay
+      ctx.save();
+      const count = ball.type === 'triple' ? 3 : 2;
+      const color = ball.type === 'triple' ? '#38bdf8' : '#facc15';
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 5;
+
+      for (let i = 0; i < count; i++) {
+        const ang = time * 3 + (i * Math.PI * 2) / count;
+        const ox = ball.x + Math.cos(ang) * (ball.radius + 5);
+        const oy = ball.y + Math.sin(ang) * (ball.radius + 5);
+        ctx.beginPath();
+        ctx.arc(ox, oy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (ball.boostedByOil) {
+      // Shimmering oil sheen reflection
+      ctx.save();
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius + 1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 

@@ -5,10 +5,18 @@ export class Camera {
   public y: number = 0;
   public targetY: number = 0;
   private isReturning: boolean = false;
-  private maxScrollY: number = GAME_CONSTANTS.WORLD_HEIGHT - GAME_CONSTANTS.VIEWPORT_HEIGHT;
+  public viewportHeight: number = GAME_CONSTANTS.VIEWPORT_HEIGHT_GAMEPLAY;
 
   constructor() {
     this.reset();
+  }
+
+  public setViewportHeight(height: number) {
+    this.viewportHeight = height;
+  }
+
+  public get maxScrollY(): number {
+    return Math.max(0, GAME_CONSTANTS.WORLD_HEIGHT - this.viewportHeight);
   }
 
   public reset() {
@@ -30,8 +38,8 @@ export class Camera {
       }
     }
 
-    // Lead the ball slightly below screen center
-    const desiredY = maxYBall.y - GAME_CONSTANTS.CAMERA_LEAD_Y;
+    // Lead the ball around 45% of the visible viewport
+    const desiredY = maxYBall.y - (this.viewportHeight * 0.45);
     this.targetY = Math.max(0, Math.min(desiredY, this.maxScrollY));
   }
 
@@ -64,6 +72,6 @@ export class Camera {
 
   public isVisible(worldY: number, height = 50): boolean {
     const screenY = this.transformY(worldY);
-    return screenY + height >= -100 && screenY <= GAME_CONSTANTS.VIEWPORT_HEIGHT + 100;
+    return screenY + height >= -100 && screenY <= this.viewportHeight + 100;
   }
 }

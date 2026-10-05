@@ -1,4 +1,4 @@
-import { LevelConfig, MachineObject, TopChannel, BoxReward, BlockColor } from '../types/game';
+import { LevelConfig, MachineObject, TopChannel, BoxReward, BlockColor, ArrowDirection } from '../types/game';
 import { GAME_CONSTANTS } from './constants';
 
 // Seeded Pseudo-Random Number Generator for reproducible, controlled level generation
@@ -121,20 +121,24 @@ export class LevelManager {
       if ((o1 as any).clusterId !== undefined && (o1 as any).clusterId === (o2 as any).clusterId) {
         return -2; // Allowed to touch side-by-side inside same cluster
       }
-      return 36; // Spacing between different clusters
+      return 8; // Small gap between different block clusters
+    }
+
+    if (o1.type === 'box' && o2.type === 'box') {
+      return 2; // Bottom prize boxes placed neatly side-by-side
     }
 
     const isLarge1 = o1.type === 'gear' || o1.type === 'windmill' || o1.type === 'fan' || o1.type === 'ramp' || o1.type === 'pipe';
     const isLarge2 = o2.type === 'gear' || o2.type === 'windmill' || o2.type === 'fan' || o2.type === 'ramp' || o2.type === 'pipe';
 
     if (isLarge1 && isLarge2) {
-      return 60; // Extra generous gap between multiple heavy elements
+      return 14; // Enough visual/physical breathing room
     }
     if (isLarge1 || isLarge2) {
-      return 45; // Generous gap between heavy and medium elements
+      return 10; // Enough breathing room without starving the level
     }
 
-    return 24; // Safe minimum distance between standard elements
+    return 8; // Compact but non-overlapping placement
   }
 
   private static tryPlaceObject(obj: MachineObject, existing: MachineObject[]): boolean {
@@ -156,6 +160,10 @@ export class LevelManager {
   ): { x: number; y: number } | null {
     const origX = obj.x;
     const origY = obj.y;
+    const segmentDx = (obj.type === 'ramp' || obj.type === 'pipe' || obj.type === 'moving_bar' || obj.type === 'lever')
+      ? (((obj as any).x2 ?? (obj.x + ((obj as any).length ?? 80))) - origX) : 0;
+    const segmentDy = (obj.type === 'ramp' || obj.type === 'pipe' || obj.type === 'moving_bar' || obj.type === 'lever')
+      ? (((obj as any).y2 ?? obj.y) - origY) : 0;
 
     const steps = [
       { dx: 0, dy: 0 },
@@ -189,12 +197,8 @@ export class LevelManager {
       obj.y = trialY;
 
       if (obj.type === 'ramp' || obj.type === 'pipe' || obj.type === 'moving_bar' || obj.type === 'lever') {
-        const dx = (obj as any).x2 !== undefined ? (obj as any).x2 - origX : 0;
-        const dy = (obj as any).y2 !== undefined ? (obj as any).y2 - origY : 0;
-        if (dx !== 0 || dy !== 0) {
-          (obj as any).x2 = trialX + dx;
-          (obj as any).y2 = trialY + dy;
-        }
+        (obj as any).x2 = trialX + segmentDx;
+        (obj as any).y2 = trialY + segmentDy;
       }
 
       if (this.tryPlaceObject(obj, existing)) {
@@ -261,17 +265,19 @@ export class LevelManager {
   }
 
   public static createBottomBoxes(rewards: BoxReward[]): MachineObject[] {
-    const boxWidth = 52;
-    // Place them neatly together in a horizontal row at Y = 2500 (high above loss hole Y = 2720)
-    const startY = 2500;
+    const boxWidth = 46;
+    // Bottom 10% of playable machine (height 2800): Y = 2520.
+    // Explicit rule (Req 6 & 8): EXCLUDE loss hole at X = 225, leaving a clear open central channel.
+    // 6 boxes in a single horizontal row: 3 on left, 3 on right.
+    const startY = 2520;
     const positions = [
-      { x: 50, y: startY },
-      { x: 108, y: startY },
-      { x: 166, y: startY },
-      { x: 225, y: startY },
-      { x: 284, y: startY },
-      { x: 342, y: startY },
-      { x: 400, y: startY },
+      { x: 55, y: startY },
+      { x: 112, y: startY },
+      { x: 169, y: startY },
+      // Central open corridor above loss hole (X = 192 to 258)
+      { x: 281, y: startY },
+      { x: 338, y: startY },
+      { x: 395, y: startY },
     ];
 
     return positions.map((pos, i) => ({
@@ -279,8 +285,8 @@ export class LevelManager {
       type: 'box',
       x: pos.x,
       y: pos.y,
-      width: boxWidth - 4,
-      height: 48,
+      width: boxWidth,
+      height: boxWidth,
       boxIndex: i,
       reward: rewards[i % rewards.length],
       opened: false,
@@ -317,56 +323,56 @@ export class LevelManager {
     // Create 2D grid initialized to false (open)
     const grid = Array.from({ length: cols }, () => new Array(rows).fill(false));
 
-    // Mark permanent physical blockers on the grid
+    // Mark permanent physical blockers and initial brick formations on the grid
     for (const obj of objects) {
       if (obj.destroyed) continue;
 
-      // Breakable blocks, balloons, targets, oil, and boxes are either collectible, slippery, or breakable, so they don't block path permanently
-      if (obj.type === 'ramp' || obj.type === 'moving_bar' || obj.type === 'lever') {
+      if (obj.type === 'breakable_block') {
+        const halfW = obj.width / 2;
+        const halfH = obj.height / 2;
+        const minGX = Math.max(0, Math.floor((obj.x - halfW) / cellSize));
+        const maxGX = Math.min(cols - 1, Math.floor((obj.x + halfW) / cellSize));
+        const minGY = Math.max(0, Math.floor((obj.y - halfH) / cellSize));
+        const maxGY = Math.min(rows - 1, Math.floor((obj.y + halfH) / cellSize));
+        for (let gx = minGX; gx <= maxGX; gx++) {
+          for (let gy = minGY; gy <= maxGY; gy++) {
+            grid[gx][gy] = true;
+          }
+        }
+      } else if (obj.type === 'ramp' || obj.type === 'moving_bar' || obj.type === 'lever' || obj.type === 'pipe') {
         const x1 = obj.x;
         const y1 = obj.y;
         const x2 = (obj as any).x2 ?? (obj.x + 80);
         const y2 = (obj as any).y2 ?? obj.y;
-        const thickness = (obj as any).thickness || 12;
-
-        // Trace line segments on our coarse validation grid
         const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 6);
         for (let i = 0; i <= steps; i++) {
           const t = steps > 0 ? i / steps : 0;
           const lx = x1 + t * (x2 - x1);
           const ly = y1 + t * (y2 - y1);
-
-          const rad = (thickness / 2 + 10) / cellSize;
           const gcx = Math.floor(lx / cellSize);
           const gcy = Math.floor(ly / cellSize);
-
-          for (let dx = -Math.ceil(rad); dx <= rad; dx++) {
-            for (let dy = -Math.ceil(rad); dy <= rad; dy++) {
-              const nx = gcx + dx;
-              const ny = gcy + dy;
-              if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-                grid[nx][ny] = true;
-              }
-            }
+          if (gcx >= 0 && gcx < cols && gcy >= 0 && gcy < rows) {
+            grid[gcx][gcy] = true;
           }
         }
       } else if (
         obj.type === 'bumper' ||
         obj.type === 'gear' ||
         obj.type === 'windmill' ||
-        obj.type === 'bomb'
+        obj.type === 'trampoline' ||
+        obj.type === 'target'
       ) {
-        const rad = (obj as any).radius || (obj as any).armLength || 20;
+        const rad = (obj as any).radius || (obj as any).armLength || 22;
         const gcx = Math.floor(obj.x / cellSize);
         const gcy = Math.floor(obj.y / cellSize);
-        const gridR = Math.ceil((rad + 10) / cellSize);
+        const gridR = Math.ceil(rad / cellSize);
 
         for (let dx = -gridR; dx <= gridR; dx++) {
           for (let dy = -gridR; dy <= gridR; dy++) {
             const nx = gcx + dx;
             const ny = gcy + dy;
             if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-              if (Math.hypot(dx, dy) * cellSize <= rad + 10) {
+              if (Math.hypot(dx, dy) * cellSize <= rad) {
                 grid[nx][ny] = true;
               }
             }
@@ -391,7 +397,16 @@ export class LevelManager {
     }
 
     let reachedBottom = false;
-    const targetY = Math.floor(2480 / cellSize);
+    const targetY = Math.floor(2450 / cellSize);
+    const dirs = [
+      [0, 1],   // Down
+      [-1, 1],  // Down-Left
+      [1, 1],   // Down-Right
+      [-1, 0],  // Left
+      [1, 0],   // Right
+      [-1, -1], // Up-Left (bounce)
+      [1, -1]   // Up-Right (bounce)
+    ];
 
     while (queue.length > 0) {
       const [cx, cy] = queue.shift()!;
@@ -400,15 +415,6 @@ export class LevelManager {
         reachedBottom = true;
         break;
       }
-
-      // Ball can roll down, left, right or slide diagonally
-      const dirs = [
-        [0, 1],   // Down
-        [-1, 1],  // Down-Left
-        [1, 1],   // Down-Right
-        [-1, 0],  // Left
-        [1, 0]    // Right
-      ];
 
       for (const [dx, dy] of dirs) {
         const nx = cx + dx;
@@ -432,382 +438,245 @@ export class LevelManager {
     const height = GAME_CONSTANTS.WORLD_HEIGHT; // 2800
     const objects: MachineObject[] = [];
 
-    const availableColors: BlockColor[] = ['rojo', 'azul', 'verde', 'amarillo', 'naranja', 'morado', 'rosa'];
+    const colors: BlockColor[] = ['rojo', 'azul', 'verde', 'amarillo', 'naranja', 'morado', 'rosa'];
     const balloonColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899'];
-
-    // 12 precise vertical segments/tramos to space out mechanics and block structures perfectly
-    const tramosCount = 12;
-    const tramoHeight = 175;
-    const tramoStartY = 250;
-
+    const tramos = 12;
+    const tramoHeight = 168;
+    const firstY = 240;
     let blockCounter = 0;
     let clusterCounter = 0;
 
-    for (let t = 0; t < tramosCount; t++) {
-      const minY = tramoStartY + t * tramoHeight;
-      const maxY = minY + tramoHeight;
-      const midY = (minY + maxY) / 2;
+    const addIfValid = (obj: MachineObject, minY: number, maxY: number) => {
+      const found = this.findValidPosition(obj, objects, width, minY, maxY);
+      if (!found) return false;
+      objects.push(obj);
+      return true;
+    };
 
-      // --- A. PLACE 1 HIGH-VARIATION HORIZONTAL OR STAGGERED BLOCK CLUSTER OF EXACTLY 5 BLOCKS (Guarantees exactly 60 blocks) ---
-      const clusterSize = 5;
-      const color = rng.choice(availableColors);
-      const hp = color === 'morado' || color === 'rosa' ? 3 : color === 'verde' || color === 'naranja' ? 2 : 1;
-      
-      const patternIdx = rng.rangeInt(0, 3); // 4 custom cluster layouts (flat, slanted, arch, V-shape) to break breakout monotony!
-      const pattern = this.getBlockClusterPattern(patternIdx);
+    // Generate non-repetitive clusters of 3-5 bricks distributed across 12 tramos.
+    // Guaranteed >= 60 bricks without ever forming full horizontal walls or repetitive grids.
+    for (let t = 0; t < tramos; t++) {
+      const minY = firstY + t * tramoHeight;
+      const maxY = Math.min(2260, minY + tramoHeight);
 
-      const startX = rng.rangeInt(40, width - 40 - 176);
-      const startY = rng.range(minY + 20, maxY - 60);
-      clusterCounter++;
+      // Primary cluster (3 to 5 bricks)
+      const clusterSize1 = rng.rangeInt(3, 5);
+      const left1 = t % 2 === 0;
+      const clusterW1 = (clusterSize1 - 1) * 40 + 38;
+      const startX1 = left1 ? 45 : width - 45 - clusterW1;
+      const clusterY1 = minY + 40;
+      const color1 = rng.choice(colors);
+      const hp1 = color1 === 'morado' || color1 === 'rosa' ? 3 : color1 === 'verde' || color1 === 'naranja' ? 2 : 1;
+      const cId1 = ++clusterCounter;
 
-      const shifts = [
-        { dx: 0, dy: 0 },
-        { dx: -20, dy: 0 }, { dx: 20, dy: 0 }, { dx: 0, dy: -20 }, { dx: 0, dy: 20 },
-        { dx: -40, dy: 0 }, { dx: 40, dy: 0 }, { dx: 0, dy: -40 }, { dx: 0, dy: 40 },
-        { dx: -60, dy: 0 }, { dx: 60, dy: 0 }, { dx: 0, dy: -60 }, { dx: 0, dy: 60 },
-      ];
+      for (let i = 0; i < clusterSize1; i++) {
+        const b: MachineObject = {
+          id: `blk_${++blockCounter}`,
+          type: 'breakable_block',
+          x: startX1 + i * 40 + 19,
+          y: clusterY1,
+          width: 38,
+          height: 26,
+          health: hp1,
+          maxHealth: hp1,
+          blockColor: color1,
+          clusterId: cId1,
+        } as any;
+        if (this.tryPlaceObject(b, objects)) objects.push(b);
+      }
 
-      for (const shift of shifts) {
-        const trialStartX = startX + shift.dx;
-        const trialStartY = startY + shift.dy;
+      // Secondary cluster in 8 of the tramos to reach 65-75 total bricks smoothly
+      if (t !== 2 && t !== 5 && t !== 8 && t !== 11) {
+        const clusterSize2 = rng.rangeInt(3, 4);
+        const left2 = !left1;
+        const clusterW2 = (clusterSize2 - 1) * 40 + 38;
+        const startX2 = left2 ? 45 : width - 45 - clusterW2;
+        const clusterY2 = minY + 105;
+        const color2 = rng.choice(colors);
+        const hp2 = color2 === 'morado' || color2 === 'rosa' ? 3 : color2 === 'verde' || color2 === 'naranja' ? 2 : 1;
+        const cId2 = ++clusterCounter;
 
-        if (trialStartX < 30 || trialStartX + 176 > width - 30) continue;
-        if (trialStartY < minY + 15 || trialStartY > maxY - 15) continue;
-
-        const candidates: MachineObject[] = [];
-        for (let i = 0; i < clusterSize; i++) {
-          const pt = pattern[i];
-          candidates.push({
+        for (let i = 0; i < clusterSize2; i++) {
+          const b: MachineObject = {
             id: `blk_${++blockCounter}`,
             type: 'breakable_block',
-            x: trialStartX + pt.dx,
-            y: trialStartY + pt.dy,
-            width: 40,
-            height: 24,
-            health: hp,
-            maxHealth: hp,
-            blockColor: color,
-            clusterId: clusterCounter,
-          } as any);
-        }
-
-        let candidatesValid = true;
-        for (const cand of candidates) {
-          if (!this.tryPlaceObject(cand, objects)) {
-            candidatesValid = false;
-            break;
-          }
-        }
-
-        if (candidatesValid) {
-          objects.push(...candidates);
-          break;
-        } else {
-          blockCounter -= clusterSize; // Revert block ID increments on overlap
+            x: startX2 + i * 40 + 19,
+            y: clusterY2,
+            width: 38,
+            height: 26,
+            health: hp2,
+            maxHealth: hp2,
+            blockColor: color2,
+            clusterId: cId2,
+          } as any;
+          if (this.tryPlaceObject(b, objects)) objects.push(b);
         }
       }
 
-      // --- B. PLACE ASSIGNED PROCEDURAL MECHANICS IN THIS TRAMO ---
-      // Wooden Planks (Plank assigned to tramos 0, 1, 2, 3, 5, 6, 7, 8, 9, 10 alternating sides)
-      if (t !== 4 && t !== 11) {
-        const isLeftPlank = t % 2 === 0;
-        const angle = isLeftPlank ? 0.3 : -0.3;
-        const x1 = isLeftPlank ? 30 : width - 160;
-        const plank = {
-          id: `plank_${t + 1}`,
-          type: 'ramp',
-          x: x1,
-          y: midY,
-          x2: x1 + Math.cos(angle) * 130,
-          y2: midY + Math.sin(angle) * 130,
-          thickness: 14,
-        } as MachineObject;
+      // Place diverse interactive mechanics per tramo
+      const safeX = left1 ? width - 85 : 85;
+      const centerX = 225;
+      const yA = minY + (t % 2 === 0 ? 95 : 130);
+      const yB = minY + (t % 2 === 0 ? 145 : 80);
 
-        this.findValidPosition(plank, objects, width, minY + 10, maxY - 10);
-        objects.push(plank);
-      }
-
-      // Gears (assigned to tramos 0, 3, 6, 9)
-      if (t === 0 || t === 3 || t === 6 || t === 9) {
-        const gear = {
-          id: `gear_${t}`,
-          type: 'gear',
-          x: rng.range(70, width - 70),
-          y: rng.range(minY + 20, maxY - 20),
-          radius: rng.rangeInt(30, 42),
-          teeth: 8,
-          speed: (rng.next() > 0.5 ? 1 : -1) * rng.range(0.8, 1.5),
-        } as MachineObject;
-
-        this.findValidPosition(gear, objects, width, minY + 15, maxY - 15);
-        objects.push(gear);
-      }
-
-      // Windmills (assigned to tramos 1, 4, 7, 10)
+      // Gears (Engranajes)
       if (t === 1 || t === 4 || t === 7 || t === 10) {
-        const wm = {
-          id: `wm_${t}`,
-          type: 'windmill',
-          x: rng.range(75, width - 75),
-          y: rng.range(minY + 20, maxY - 20),
-          arms: 4,
-          armLength: 42,
-          thickness: 10,
-          rotationSpeed: (rng.next() > 0.5 ? 1.4 : -1.4),
-        } as MachineObject;
-
-        this.findValidPosition(wm, objects, width, minY + 15, maxY - 15);
-        objects.push(wm);
+        addIfValid({
+          id: `gear_${t}`, type: 'gear', x: safeX, y: yA,
+          radius: 28, teeth: 8, speed: (t % 2 === 0 ? 1 : -1) * 1.1,
+          motionType: 'continuous_spin', angularSpeed: (t % 2 === 0 ? 1 : -1) * 1.1,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Bumpers (assigned to tramos 0, 2, 4, 6, 8, 10)
-      if (t === 0 || t === 2 || t === 4 || t === 6 || t === 8 || t === 10) {
-        const bmp = {
-          id: `bmp_${t}`,
-          type: 'bumper',
-          x: rng.range(60, width - 60),
-          y: rng.range(minY + 20, maxY - 20),
-          radius: 20,
-          bounceForce: 650,
-          points: 30,
-        } as MachineObject;
-
-        this.findValidPosition(bmp, objects, width, minY + 15, maxY - 15);
-        objects.push(bmp);
+      // Windmills (Molinos)
+      if (t === 0 || t === 3 || t === 6 || t === 9) {
+        addIfValid({
+          id: `wm_${t}`, type: 'windmill', x: safeX, y: yA,
+          arms: 4, armLength: 32, thickness: 10,
+          rotationSpeed: (t % 2 === 0 ? 1 : -1) * 1.0,
+          motionType: 'continuous_spin', angularSpeed: (t % 2 === 0 ? 1 : -1) * 1.0,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Balloons (assigned to tramos 1, 2, 3, 5, 6, 7, 9, 10, 11 - sometimes 2!)
-      if (t === 1 || t === 2 || t === 3 || t === 5 || t === 6 || t === 7 || t === 9 || t === 10 || t === 11) {
-        const balloonCountInTramo = t === 3 || t === 7 ? 2 : 1;
-        for (let b = 0; b < balloonCountInTramo; b++) {
-          const isMoving = rng.next() > 0.5;
-          const bal = {
-            id: `bal_${t}_${b}`,
-            type: 'balloon',
-            x: rng.range(60, width - 60),
-            y: rng.range(minY + 20, maxY - 20),
-            radius: 18,
-            color: rng.choice(balloonColors),
-            popped: false,
-            floatOffset: 0,
-            motionType: isMoving ? 'patrol_h' : 'static',
-            moveRange: isMoving ? rng.rangeInt(30, 50) : 0,
-            moveSpeed: rng.range(0.8, 1.4),
-          } as MachineObject;
-
-          this.findValidPosition(bal, objects, width, minY + 15, maxY - 15);
-          objects.push(bal);
-        }
-      }
-
-      // Trampolines (assigned to tramos 2, 5, 8, 11)
-      if (t === 2 || t === 5 || t === 8 || t === 11) {
-        const tramp = {
-          id: `tramp_${t}`,
-          type: 'trampoline',
-          x: rng.range(70, width - 70),
-          y: rng.range(minY + 20, maxY - 20),
-          width: 48,
-          height: 18,
-          angle: rng.choice([0, 0.2, -0.2]),
-          bounceForce: 630,
-          animTimer: 0,
-        } as MachineObject;
-
-        this.findValidPosition(tramp, objects, width, minY + 15, maxY - 15);
-        objects.push(tramp);
-      }
-
-      // Speed Arrows (assigned to tramos 1, 3, 5, 7, 9, 11)
+      // Pinball Bumpers
       if (t === 1 || t === 3 || t === 5 || t === 7 || t === 9 || t === 11) {
-        const isRightArrow = rng.next() > 0.5;
-        const arrow = {
-          id: `arr_${t}`,
-          type: 'arrow',
-          x: rng.range(70, width - 70),
-          y: rng.range(minY + 20, maxY - 20),
-          width: 40,
-          height: 36,
-          forceX: isRightArrow ? 280 : -280,
-          forceY: 200,
-          angle: isRightArrow ? 0.35 : -0.35,
-        } as MachineObject;
-
-        this.findValidPosition(arrow, objects, width, minY + 15, maxY - 15);
-        objects.push(arrow);
+        addIfValid({
+          id: `bmp_${t}`, type: 'bumper', x: centerX + (t % 2 === 0 ? 40 : -40), y: yB,
+          radius: 23, bounceForce: 650, points: 30,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Oil Slicks (assigned to tramos 0, 4, 8, 11)
-      if (t === 0 || t === 4 || t === 8 || t === 11) {
-        const oil = {
-          id: `oil_${t}`,
-          type: 'oil',
-          x: rng.range(80, width - 80),
-          y: rng.range(minY + 20, maxY - 20),
-          width: 95,
-          height: 14,
-          boostFactor: 1.45,
-        } as MachineObject;
-
-        this.findValidPosition(oil, objects, width, minY + 15, maxY - 15);
-        objects.push(oil);
+      // Slow, clearly visible Balloons (Globos) - Requirement 9: Increased quantity distributed across levels
+      if (t < 11) {
+        const balOffset = (t % 3 === 0 ? -60 : t % 3 === 1 ? 60 : 0);
+        const balBaseX = centerX + balOffset + rng.rangeInt(-15, 15);
+        const balBaseY = minY + rng.rangeInt(50, 80);
+        addIfValid({
+          id: `bal_${t}`, type: 'balloon', x: balBaseX, y: balBaseY,
+          radius: 22, color: rng.choice(balloonColors), popped: false, floatOffset: rng.range(0, Math.PI * 2),
+          motionType: 'patrol_h', moveRange: rng.rangeInt(24, 38), moveSpeed: rng.range(0.9, 1.3),
+          baseX: balBaseX, baseY: balBaseY,
+        } as MachineObject, minY + 15, maxY - 15);
       }
 
-      // Targets (assigned to tramos 1, 3, 7, 9, 11)
-      if (t === 1 || t === 3 || t === 7 || t === 9 || t === 11) {
-        const target = {
-          id: `target_${t}`,
-          type: 'target',
-          x: rng.range(60, width - 60),
-          y: rng.range(minY + 20, maxY - 20),
-          radius: 18,
-          points: 100,
-          hit: false,
-          isSpecial: t % 2 === 0,
-        } as MachineObject;
-
-        this.findValidPosition(target, objects, width, minY + 15, maxY - 15);
-        objects.push(target);
+      // Trampolines (using native horizontal/slanted cells)
+      if (t === 2 || t === 5 || t === 8 || t === 11) {
+        addIfValid({
+          id: `tramp_${t}`, type: 'trampoline', x: safeX, y: yB,
+          width: 72, height: 26, angle: t % 4 === 2 ? 0 : (t % 4 === 1 ? 0.25 : -0.25),
+          bounceForce: 630, animTimer: 0,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Bombs (assigned to tramos 2, 6, 10)
+      // Pipes (Tuberías)
+      if (t === 0 || t === 4 || t === 8) {
+        const px = left1 ? width - 130 : 50;
+        addIfValid({
+          id: `pipe_${t}`, type: 'pipe', x: px, y: minY + 70,
+          x2: px + 80, y2: minY + 70,
+          radius: 14, boostSpeed: 75,
+        } as MachineObject, minY + 20, maxY - 20);
+      }
+
+      // Arrows (Flechas) - Requirement 5: exact physical directional acceleration
+      if (t === 1 || t === 5 || t === 9) {
+        const arrowOptions: { dir: ArrowDirection; fx: number; fy: number; a: number }[] = [
+          { dir: 'UP', fx: 0, fy: -380, a: -Math.PI / 2 },
+          { dir: 'DOWN', fx: 0, fy: 380, a: Math.PI / 2 },
+          { dir: 'LEFT', fx: -380, fy: 0, a: Math.PI },
+          { dir: 'RIGHT', fx: 380, fy: 0, a: 0 },
+          { dir: 'DIAG_RIGHT', fx: 280, fy: 280, a: Math.PI / 4 },
+          { dir: 'DIAG_LEFT', fx: -280, fy: 280, a: 3 * Math.PI / 4 },
+        ];
+        const opt = arrowOptions[(t + levelNumber) % arrowOptions.length];
+        addIfValid({
+          id: `arr_${t}`, type: 'arrow', x: centerX, y: yB,
+          width: 48, height: 48, forceX: opt.fx, forceY: opt.fy,
+          angle: opt.a, direction: opt.dir,
+        } as MachineObject, minY + 20, maxY - 20);
+      }
+
+      // Oil patches (Manchas de aceite)
       if (t === 2 || t === 6 || t === 10) {
-        const bomb = {
-          id: `bomb_${t}`,
-          type: 'bomb',
-          x: rng.range(60, width - 60),
-          y: rng.range(minY + 20, maxY - 20),
-          radius: 16,
-        } as MachineObject;
-
-        this.findValidPosition(bomb, objects, width, minY + 15, maxY - 15);
-        objects.push(bomb);
+        addIfValid({
+          id: `oil_${t}`, type: 'oil', x: safeX, y: minY + 110,
+          width: 76, height: 38, boostFactor: 1.35,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Pipes / Tuberías (assigned to tramos 0, 4, 8, 11)
-      if (t === 0 || t === 4 || t === 8 || t === 11) {
-        const isLeftToRight = t % 2 === 0;
-        const x1 = isLeftToRight ? 50 : width - 50;
-        const x2 = isLeftToRight ? 180 : width - 180;
-        const pipe = {
-          id: `pipe_${t}`,
-          type: 'pipe',
-          x: x1,
-          y: minY + 30,
-          x2: x2,
-          y2: minY + 90,
-          radius: 14,
-          boostSpeed: 75,
-        } as any;
-
-        this.findValidPosition(pipe, objects, width, minY + 15, maxY - 15);
-        objects.push(pipe);
+      // Targets (Dianas) - Pinball reactive score targets (Req 10)
+      if (t === 1 || t === 3 || t === 7 || t === 9) {
+        addIfValid({
+          id: `target_${t}`, type: 'target', x: safeX, y: yB,
+          radius: 22, points: t % 2 === 0 ? 150 : 100, isSpecial: t % 2 === 0, hitTimer: 0,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Moving bars (assigned to tramos 2, 8)
-      if (t === 2 || t === 8) {
-        const mbar = {
-          id: `mbar_${t}`,
-          type: 'moving_bar',
-          x: rng.range(120, width - 120),
-          y: rng.range(minY + 20, maxY - 20),
-          length: 80,
-          thickness: 12,
-          pivotType: 'center',
-          motionType: 'patrol_h',
-          baseX: 0, // will be overwritten by engine based on starting position
-          baseY: 0,
-          moveRange: 55,
-          moveSpeed: 1.1,
-        } as any;
-
-        this.findValidPosition(mbar, objects, width, minY + 15, maxY - 15);
-        // Sync starting physics baseline coordinates with its found valid position
-        mbar.baseX = mbar.x;
-        mbar.baseY = mbar.y;
-        objects.push(mbar);
+      // Bombs (Bombas)
+      if (t === 0 || t === 4 || t === 8) {
+        addIfValid({
+          id: `bomb_${t}`, type: 'bomb', x: centerX, y: yA,
+          radius: 22, exploded: false,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Levers (assigned to tramos 3, 9)
+      // Fans (Ventiladores)
       if (t === 3 || t === 9) {
-        const lever = {
-          id: `lever_${t}`,
-          type: 'lever',
-          x: rng.range(80, width - 150),
-          y: rng.range(minY + 20, maxY - 20),
-          length: 75,
-          thickness: 12,
-          pivotType: 'left',
-          motionType: 'lever',
-          baseAngle: 0.3,
-          maxAngle: -0.3,
-          triggeredAngle: -0.3,
-          isTriggered: false,
-        } as any;
-
-        this.findValidPosition(lever, objects, width, minY + 15, maxY - 15);
-        objects.push(lever);
+        addIfValid({
+          id: `fan_${t}`, type: 'fan', x: safeX, y: minY + 130,
+          width: 50, height: 50, forceX: left1 ? -280 : 280, forceY: 0,
+          range: 150, bladeAngle: 0,
+        } as MachineObject, minY + 20, maxY - 20);
       }
 
-      // Fans (assigned to tramos 4, 10)
-      if (t === 4 || t === 10) {
-        const isLeftFan = t === 4;
-        const fan = {
-          id: `fan_${t}`,
-          type: 'fan',
-          x: isLeftFan ? 50 : width - 50,
-          y: rng.range(minY + 30, maxY - 30),
-          width: 44,
-          height: 44,
-          forceX: isLeftFan ? 380 : -380,
-          forceY: 0,
-          range: 180,
-          bladeAngle: 0,
-        } as any;
-
-        this.findValidPosition(fan, objects, width, minY + 15, maxY - 15);
-        objects.push(fan);
-      }
-
-      // Magnets (assigned to tramos 5, 11)
+      // Magnets (Imanes)
       if (t === 5 || t === 11) {
-        const magnet = {
-          id: `magnet_${t}`,
-          type: 'magnet',
-          x: rng.range(100, width - 100),
-          y: rng.range(minY + 10, maxY - 10),
-          radius: 35,
-          strength: 5.5,
-        } as any;
+        addIfValid({
+          id: `magnet_${t}`, type: 'magnet', x: safeX, y: minY + 130,
+          radius: 28, strength: 5.5,
+        } as MachineObject, minY + 20, maxY - 20);
+      }
 
-        this.findValidPosition(magnet, objects, width, minY + 15, maxY - 15);
-        objects.push(magnet);
+      // Moving bars / Levers
+      if (t === 2 || t === 8) {
+        const barX = left1 ? width - 120 : 60;
+        addIfValid({
+          id: `mbar_${t}`, type: 'moving_bar', x: barX, y: minY + 120,
+          length: 76, thickness: 12, pivotType: 'center', motionType: 'patrol_h',
+          baseX: barX, baseY: minY + 120, moveRange: 30, moveSpeed: 0.4,
+        } as MachineObject, minY + 90, maxY - 15);
+      }
+      if (t === 6 || t === 10) {
+        const lx = left1 ? width - 110 : 70;
+        addIfValid({
+          id: `lever_${t}`, type: 'lever', x: lx, y: minY + 125,
+          length: 68, thickness: 12, pivotType: 'left',
+          baseAngle: 0, maxAngle: 0.3, triggeredAngle: 0.3, isTriggered: false,
+        } as MachineObject, minY + 95, maxY - 15);
       }
     }
 
-    // --- 14. BOTTOM TIER: 7 PRIZE BOXES (cajas.png) ---
-    const bottomBoxes = this.createBottomBoxes([
-      'ball_1',
-      'power_explosive',
-      'points_500',
-      'power_double',
-      'ball_2',
-      'power_fast',
-      'ball_1',
-    ]);
+    // Varied bottom prize boxes rewards mix (Req 8: mix of rewards and empty boxes)
+    const rewardMixes: BoxReward[][] = [
+      ['power_double', 'empty', 'ball_1', 'power_explosive', 'points_500', 'empty'],
+      ['ball_2', 'power_triple', 'empty', 'power_fast', 'points_500', 'power_shield'],
+      ['empty', 'power_fast', 'ball_1', 'power_double', 'empty', 'power_triple'],
+      ['power_shield', 'empty', 'power_double', 'points_500', 'power_explosive', 'ball_1'],
+    ];
+    const chosenRewards = rewardMixes[levelNumber % rewardMixes.length];
+    const bottomBoxes = this.createBottomBoxes(chosenRewards);
 
-    // Bottom chamber safety pinball bumpers
+    // Lower bumpers framing the exit area
     const bottomBumpers: MachineObject[] = [
-      { id: 'bmp_bot_left', type: 'bumper', x: 45, y: 2380, radius: 20, bounceForce: 650, points: 30 },
-      { id: 'bmp_bot_right', type: 'bumper', x: 405, y: 2380, radius: 20, bounceForce: 650, points: 30 },
-      { id: 'bmp_bot_center', type: 'bumper', x: 225, y: 2360, radius: 20, bounceForce: 640, points: 30 },
+      { id: 'bmp_bot_left', type: 'bumper', x: 55, y: 2380, radius: 23, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_right', type: 'bumper', x: 395, y: 2380, radius: 23, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_center', type: 'bumper', x: 225, y: 2325, radius: 23, bounceForce: 640, points: 30 },
     ];
 
     const allObjects = [...objects, ...bottomBumpers, ...bottomBoxes];
-
-    // --- 15. REAL PATHFINDING CONNECTIVITY VALIDATION ---
-    const valid = this.isPlayable(allObjects, width, height);
-    if (!valid) return null; // Reject layout & let retry handle next seed
+    const brickCount = allObjects.filter(o => o.type === 'breakable_block').length;
+    if (brickCount < 68 || brickCount > 77) return null;
+    if (!this.isPlayable(allObjects, width, height)) return null;
 
     return {
       levelNumber,
@@ -815,48 +684,80 @@ export class LevelManager {
       worldWidth: width,
       worldHeight: height,
       startingBalls: 8 + Math.floor(levelNumber / 2),
-      goal: {
-        type: 'destroy_count',
-        target: 7,
-        current: 0,
-        description: 'Destruye las 7 cajas de la máquina',
-      },
+      goal: { type: 'destroy_count', target: 6, current: 0, description: 'Destruye las 6 cajas de la máquina' },
       channels: this.getChannels(),
       objects: allObjects,
     };
   }
 
-  // Guaranteed fallback backup level configuration
+  // Fallback level guaranteeing exactly 72 bricks (within 68–77) and full interactive pinball mechanics
   private static generateBackupLevel(levelNumber: number): LevelConfig {
     const width = GAME_CONSTANTS.WORLD_WIDTH;
     const height = GAME_CONSTANTS.WORLD_HEIGHT;
     const objects: MachineObject[] = [];
+    const colors: BlockColor[] = ['rojo', 'azul', 'verde', 'amarillo', 'naranja', 'morado', 'rosa'];
 
-    // Simple 60 brick blocks grid to guarantee >= 60 bricks always
+    // Exactly 72 bricks across 18 clusters leaving wide alternating descent corridors
     let bCount = 0;
-    for (let row = 0; row < 12; row++) {
-      const y = 300 + row * 160;
-      for (let col = 0; col < 5; col++) {
-        const x = 50 + col * 80;
+    for (let c = 0; c < 18; c++) {
+      const clusterY = 280 + c * 115;
+      const leftSide = c % 2 === 0;
+      const startX = leftSide ? 45 : 255;
+      const size = 4; // 18 clusters * 4 bricks = 72 bricks
+      const col = colors[c % colors.length];
+      const clusterId = c + 1;
+
+      for (let i = 0; i < size; i++) {
         objects.push({
           id: `blk_back_${++bCount}`,
           type: 'breakable_block',
-          x,
-          y,
-          width: 40,
-          height: 24,
+          x: startX + i * 40 + 19,
+          y: clusterY,
+          width: 38,
+          height: 26,
           health: 1,
           maxHealth: 1,
-          blockColor: 'azul',
+          blockColor: col,
+          clusterId,
+        });
+      }
+
+      // Add corresponding mechanics
+      const mechX = leftSide ? 360 : 90;
+      if (c % 4 === 0) {
+        objects.push({
+          id: `gear_back_${c}`, type: 'gear', x: mechX, y: clusterY, radius: 28, teeth: 8,
+          speed: 1.1, motionType: 'continuous_spin', angularSpeed: 1.1,
+        });
+      } else if (c % 4 === 1) {
+        objects.push({
+          id: `wm_back_${c}`, type: 'windmill', x: mechX, y: clusterY, arms: 4, armLength: 32, thickness: 10,
+          rotationSpeed: 1.0, motionType: 'continuous_spin', angularSpeed: 1.0,
+        });
+      } else if (c % 4 === 2) {
+        objects.push({
+          id: `bmp_back_${c}`, type: 'bumper', x: mechX, y: clusterY, radius: 23, bounceForce: 650, points: 30,
+        });
+      } else {
+        objects.push({
+          id: `bal_back_${c}`, type: 'balloon', x: 225, y: clusterY - 30, radius: 22, color: '#3b82f6',
+          motionType: 'patrol_h', moveRange: 24, moveSpeed: 0.35, popped: false, floatOffset: 0,
         });
       }
     }
 
-    const bottomBoxes = this.createBottomBoxes([
-      'ball_1', 'power_explosive', 'points_500', 'power_double', 'ball_2', 'power_fast', 'ball_1'
-    ]);
+    const rewardMixes: BoxReward[][] = [
+      ['power_double', 'empty', 'ball_1', 'power_explosive', 'points_500', 'empty'],
+      ['ball_2', 'power_triple', 'empty', 'power_fast', 'points_500', 'power_shield'],
+    ];
+    const bottomBoxes = this.createBottomBoxes(rewardMixes[levelNumber % rewardMixes.length]);
+    const bottomBumpers: MachineObject[] = [
+      { id: 'bmp_bot_left', type: 'bumper', x: 55, y: 2380, radius: 23, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_right', type: 'bumper', x: 395, y: 2380, radius: 23, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_center', type: 'bumper', x: 225, y: 2325, radius: 23, bounceForce: 640, points: 30 },
+    ];
 
-    const allObjects = [...objects, ...bottomBoxes];
+    const allObjects = [...objects, ...bottomBumpers, ...bottomBoxes];
 
     return {
       levelNumber,
@@ -866,9 +767,9 @@ export class LevelManager {
       startingBalls: 8 + Math.floor(levelNumber / 2),
       goal: {
         type: 'destroy_count',
-        target: 7,
+        target: 6,
         current: 0,
-        description: 'Destruye las 7 cajas de la máquina',
+        description: 'Destruye las 6 cajas de la máquina',
       },
       channels: this.getChannels(),
       objects: allObjects,

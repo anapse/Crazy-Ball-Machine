@@ -50,8 +50,8 @@ export class PhysicsEngine {
     objects: MachineObject[],
     onEvent: (ev: PhysicsEvent) => void
   ) {
-    // 1. Update dynamic obstacle positions and pivot rotations
-    this.updateObstaclePositions(dt, objects);
+    // 1. Update dynamic obstacle positions, pivot rotations and moving collisions
+    this.updateObstaclePositions(dt, objects, onEvent);
 
     // 2. Physics substepping
     const substeps = 5;
@@ -61,13 +61,18 @@ export class PhysicsEngine {
       for (const ball of balls) {
         if (!ball.active) continue;
 
+        const isFast = ball.type === 'fast';
+        const currentGravity = isFast ? GAME_CONSTANTS.GRAVITY * 1.25 : GAME_CONSTANTS.GRAVITY;
+        const currentTerminalVel = isFast ? GAME_CONSTANTS.TERMINAL_VELOCITY * 1.35 : GAME_CONSTANTS.TERMINAL_VELOCITY;
+        const currentRestitution = isFast ? Math.min(0.95, GAME_CONSTANTS.RESTITUTION * 1.2) : GAME_CONSTANTS.RESTITUTION;
+
         // Apply Gravity
-        ball.vy += GAME_CONSTANTS.GRAVITY * subDt;
+        ball.vy += currentGravity * subDt;
 
         // Apply Terminal Velocity
         const speed = Math.hypot(ball.vx, ball.vy);
-        if (speed > GAME_CONSTANTS.TERMINAL_VELOCITY) {
-          const ratio = GAME_CONSTANTS.TERMINAL_VELOCITY / speed;
+        if (speed > currentTerminalVel) {
+          const ratio = currentTerminalVel / speed;
           ball.vx *= ratio;
           ball.vy *= ratio;
         }
@@ -82,18 +87,18 @@ export class PhysicsEngine {
 
         if (ball.x < minX) {
           ball.x = minX;
-          ball.vx = Math.abs(ball.vx) * GAME_CONSTANTS.RESTITUTION;
+          ball.vx = Math.max(120, Math.abs(ball.vx) * currentRestitution);
           soundManager.playWoodBounce(0.5);
         } else if (ball.x > maxX) {
           ball.x = maxX;
-          ball.vx = -Math.abs(ball.vx) * GAME_CONSTANTS.RESTITUTION;
+          ball.vx = -Math.max(120, Math.abs(ball.vx) * currentRestitution);
           soundManager.playWoodBounce(0.5);
         }
 
         // Trail recording
         if (s === 0) {
           ball.trail.unshift({ x: ball.x, y: ball.y, alpha: 0.6 });
-          if (ball.trail.length > 8) ball.trail.pop();
+          if (ball.trail.length > (isFast ? 14 : 8)) ball.trail.pop();
         }
 
         // Interacting with machine objects
@@ -181,6 +186,27 @@ export class PhysicsEngine {
           }
         }
 
+        // Anti-stall safety: if a ball becomes stationary anywhere on the board for too long,
+        // give it a gentle, natural physical nudge so it continues descending smoothly.
+        // Rule: NO teleports, NO arbitrary position changes.
+        const currentSpeed = Math.hypot(ball.vx, ball.vy);
+        if (currentSpeed < 20) {
+          ball.stalledTime = (ball.stalledTime || 0) + subDt;
+          if (ball.stalledTime > 1.0) {
+            ball.vx += (ball.x < GAME_CONSTANTS.WORLD_WIDTH / 2 ? 45 : -45);
+            ball.vy += 65;
+            ball.stalledTime = 0;
+          }
+        } else {
+          ball.stalledTime = 0;
+        }
+
+        // Lower chamber natural flow: guide stationary balls toward the central exit
+        if (ball.y > 2550 && currentSpeed < 20) {
+          ball.vx += (ball.x < GAME_CONSTANTS.LOSS_HOLE_X ? 30 : -30);
+          ball.vy += 35;
+        }
+
         // Single loss exit hole at bottom center
         const holeDist = Math.hypot(ball.x - GAME_CONSTANTS.LOSS_HOLE_X, ball.y - GAME_CONSTANTS.LOSS_HOLE_Y);
         if (holeDist < GAME_CONSTANTS.LOSS_HOLE_RADIUS + ball.radius) {
@@ -224,7 +250,11 @@ export class PhysicsEngine {
   }
 
   // --- Dynamic Obstacle Motion & Pivots ---
-  private updateObstaclePositions(dt: number, objects: MachineObject[]) {
+  private updateObstaclePositions(
+    dt: number,
+    objects: MachineObject[],
+    onEvent: (ev: PhysicsEvent) => void
+  ) {
     const time = Date.now() * 0.001;
 
     for (const obj of objects) {
@@ -265,9 +295,15 @@ export class PhysicsEngine {
 
         case 'patrol_h': {
           const baseX = obj.baseX ?? obj.x;
-          const range = obj.moveRange || 45;
-          const spd = obj.moveSpeed || 1.1;
-          obj.x = baseX + Math.sin(time * spd) * range;
+          const baseY = obj.baseY ?? obj.y;
+          const rangeX = obj.moveRange || 28;
+          const spdX = obj.moveSpeed || 0.75;
+          const phase = (obj as any).floatOffset || 0;
+          const rangeY = (obj as any).verticalRange || 7;
+          const spdY = (obj as any).verticalSpeed || 0.5;
+
+          obj.x = baseX + Math.sin(time * spdX + phase) * rangeX;
+          obj.y = baseY + Math.cos(time * spdY + phase * 1.5) * rangeY;
           break;
         }
 
@@ -315,6 +351,29 @@ export class PhysicsEngine {
           obj.y = pY - Math.sin(ang) * half;
           (obj as MovingBar).x2 = pX + Math.cos(ang) * half;
           (obj as MovingBar).y2 = pY + Math.sin(ang) * half;
+        }
+      }
+    }
+
+    // Moving obstacles hitting balloons (Requirement 10)
+    for (const obj of objects) {
+      if (obj.destroyed) continue;
+      if (obj.type === 'moving_bar' || obj.type === 'windmill' || obj.type === 'gear') {
+        for (const other of objects) {
+          if (other.destroyed || other.type !== 'balloon') continue;
+          const dist = Math.hypot(obj.x - other.x, obj.y - other.y);
+          if (dist < 46) {
+            other.destroyed = true;
+            soundManager.playBalloonPop();
+            this.createSparks(other.x, other.y, (other as Balloon).color || '#ef4444', 16);
+            this.addFloatingText(`+${GAME_CONSTANTS.POINTS_BALLOON}`, other.x, other.y, (other as Balloon).color || '#ef4444');
+            onEvent({
+              type: 'OBJECT_DESTROYED',
+              points: GAME_CONSTANTS.POINTS_BALLOON,
+              x: other.x,
+              y: other.y,
+            });
+          }
         }
       }
     }
@@ -452,10 +511,20 @@ export class PhysicsEngine {
 
       const dot = ball.vx * nx + ball.vy * ny;
       if (dot < 0) {
-        // Balanced restitution through blocks: avoids getting stuck while breaking paths
-        ball.vx = (ball.vx - (1 + GAME_CONSTANTS.RESTITUTION * 0.7) * dot * nx) * 0.90;
-        ball.vy = (ball.vy - (1 + GAME_CONSTANTS.RESTITUTION * 0.7) * dot * ny) * 0.90;
-        if (ball.vy < -320) ball.vy = -320;
+        // Dynamic restitution (+15% bounce maintained without artificial dampening)
+        const rest = GAME_CONSTANTS.RESTITUTION;
+        ball.vx = ball.vx - (1 + rest) * dot * nx;
+        ball.vy = ball.vy - (1 + rest) * dot * ny;
+
+        // Minimum bounce separation to guarantee the ball never stays glued/frozen to a block
+        const normalSpeed = Math.abs(ball.vx * nx + ball.vy * ny);
+        if (normalSpeed < 100) {
+          ball.vx += nx * (110 - normalSpeed);
+          ball.vy += ny * (110 - normalSpeed);
+        }
+
+        // Controlled upward rebound: allows energetic ricochets and traversal while gravity maintains descent
+        if (ball.vy < -520) ball.vy = -520;
       }
 
       if (ball.type === 'explosive' && !ball.hasExploded) {

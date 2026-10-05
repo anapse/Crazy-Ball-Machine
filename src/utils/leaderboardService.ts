@@ -20,7 +20,7 @@ const STATS_DOC = 'stats';
 const RECORD_HISTORY_COLLECTION = 'recordHistory';
 
 export const leaderboardService = {
-  // Fetch Top 50 ranked entries
+  // Fetch Top 50 ranked entries directly from Firebase Firestore
   async getTop50(): Promise<LeaderboardEntry[]> {
     try {
       const q = query(
@@ -34,26 +34,18 @@ export const leaderboardService = {
         const data = d.data();
         list.push({
           id: d.id,
-          playerName: data.playerName || 'Jugador Anónimo',
+          playerName: data.playerName || 'Jugador',
           score: Number(data.score) || 0,
           ballsUsed: data.ballsUsed,
           objectsDestroyed: data.objectsDestroyed,
           level: data.level,
           maxCombo: data.maxCombo,
-          createdAt: data.createdAt,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
         });
       });
       return list;
     } catch (err) {
-      console.warn('Leaderboard fetch fallback to local:', err);
-      const fallback = localStorage.getItem('cbm_local_leaderboard');
-      if (fallback) {
-        try {
-          return JSON.parse(fallback);
-        } catch {
-          return [];
-        }
-      }
+      console.warn('Leaderboard fetch error from Firebase:', err);
       return [];
     }
   },
@@ -71,7 +63,7 @@ export const leaderboardService = {
     }
   },
 
-  // Submit highscore to ranking collection
+  // Submit highscore directly to Firebase ranking collection
   async submitScore(entry: {
     playerName: string;
     score: number;
@@ -84,7 +76,7 @@ export const leaderboardService = {
     const score = Math.max(0, Math.floor(entry.score));
 
     try {
-      // 1. Save entry to ranking
+      // 1. Save entry to Firebase Firestore ranking collection
       await addDoc(collection(db, RANKING_COLLECTION), {
         playerName: cleanName,
         score,
@@ -139,37 +131,10 @@ export const leaderboardService = {
         );
       }
 
-      // Also update local cache
-      const cached = await this.getTop50();
-      cached.push({
-        playerName: cleanName,
-        score,
-        ballsUsed: entry.ballsUsed,
-        objectsDestroyed: entry.objectsDestroyed,
-        level: entry.level,
-        maxCombo: entry.maxCombo,
-        createdAt: new Date().toISOString(),
-      });
-      cached.sort((a, b) => b.score - a.score);
-      localStorage.setItem('cbm_local_leaderboard', JSON.stringify(cached.slice(0, 50)));
-
       return true;
     } catch (err) {
-      console.error('Error submitting score to Firebase, saving locally:', err);
-      const fallback = localStorage.getItem('cbm_local_leaderboard');
-      const list: LeaderboardEntry[] = fallback ? JSON.parse(fallback) : [];
-      list.push({
-        playerName: cleanName,
-        score,
-        ballsUsed: entry.ballsUsed,
-        objectsDestroyed: entry.objectsDestroyed,
-        level: entry.level,
-        maxCombo: entry.maxCombo,
-        createdAt: new Date().toISOString(),
-      });
-      list.sort((a, b) => b.score - a.score);
-      localStorage.setItem('cbm_local_leaderboard', JSON.stringify(list.slice(0, 50)));
-      return true;
+      console.error('Error submitting score to Firebase:', err);
+      return false;
     }
   },
 
@@ -224,14 +189,14 @@ export const leaderboardService = {
       console.warn('Error loading stats:', e);
     }
     return {
-      visits: 120,
-      sessions: 45,
-      gamesStarted: 38,
-      gamesCompleted: 31,
-      recordScore: 3450,
-      recordPlayer: 'ArcadeMaster',
-      totalObjectsDestroyed: 412,
-      totalBallsUsed: 198,
+      visits: 0,
+      sessions: 0,
+      gamesStarted: 0,
+      gamesCompleted: 0,
+      recordScore: 0,
+      recordPlayer: 'Nadie',
+      totalObjectsDestroyed: 0,
+      totalBallsUsed: 0,
     };
   },
 

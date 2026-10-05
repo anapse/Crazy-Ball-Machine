@@ -1,6 +1,6 @@
 import React from 'react';
 
-type SpriteName = 'ball' | 'double' | 'triple' | 'fast' | 'explosive' | 'shield' | 'star' | 'coins';
+type SpriteName = 'ball' | 'standard' | 'double' | 'triple' | 'fast' | 'explosive' | 'shield' | 'star' | 'coins';
 
 interface SpriteIconProps {
   name: SpriteName;
@@ -14,6 +14,7 @@ export const SpriteIcon: React.FC<SpriteIconProps> = ({ name, className = 'w-5 h
 
   switch (name) {
     case 'ball':
+    case 'standard':
       posX = '0%'; posY = '0%';
       break;
     case 'fast':

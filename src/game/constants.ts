@@ -22,7 +22,9 @@ export const GAME_CONSTANTS = {
   WORLD_WIDTH: 450,
   WORLD_HEIGHT: 2800, // Deep, long machine height
   VIEWPORT_WIDTH: 450,
-  VIEWPORT_HEIGHT: 800,
+  VIEWPORT_HEIGHT_GAMEPLAY: 720, // Exactly 90% of standard 800px vertical machine frame
+  VIEWPORT_HEIGHT_MENU: 800,     // Full 100% height when in menu
+  VIEWPORT_HEIGHT: 720,
   ASPECT_RATIO: 9 / 16,
 
   // Physics constants

@@ -15,6 +15,7 @@ export interface Ball {
   hasExploded?: boolean;
   boostedByOil?: boolean;
   boostedByArrow?: boolean;
+  stalledTime?: number;
 }
 
 export type PhysicalObjectType =
@@ -93,6 +94,7 @@ export interface BreakableBlock extends BaseObject {
   maxHealth: number;
   blockColor?: BlockColor;
   colorTheme?: string;
+  clusterId?: number;
 }
 
 export interface PipeChute extends BaseObject {
@@ -120,6 +122,8 @@ export interface WindmillPropeller extends BaseObject {
   rotationSpeed: number;
 }
 
+export type ArrowDirection = 'UP' | 'DOWN' | 'RIGHT' | 'LEFT' | 'DIAG_RIGHT' | 'DIAG_LEFT';
+
 export interface DirectionArrow extends BaseObject {
   type: 'arrow';
   width: number;
@@ -127,6 +131,7 @@ export interface DirectionArrow extends BaseObject {
   forceX: number;
   forceY: number;
   angle: number;
+  direction?: ArrowDirection;
 }
 
 export interface Ramp extends BaseObject {
@@ -339,6 +344,7 @@ export interface GameSnapshot {
   objectsDestroyedCount: number;
   totalBallsUsed: number;
   isSoundMuted: boolean;
+  playerName: string;
 }
 
 export interface LeaderboardEntry {

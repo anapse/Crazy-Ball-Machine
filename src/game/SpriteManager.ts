@@ -83,6 +83,47 @@ class SpriteManager {
 
   // --- CENTRAL AUTHORITATIVE RENDERING ENGINE ---
   // Guarantees perfect aspect ratio, uniform scale, precise centering, and custom rotation.
+  private cellBoundsCache: Record<string, { x: number; y: number; w: number; h: number }> = {};
+
+  private getCellBounds(key: string, col: number, row: number, cols: number, rows: number) {
+    const img = this.images[key];
+    const sw = Math.floor(img.naturalWidth / cols);
+    const sh = Math.floor(img.naturalHeight / rows);
+    const cacheKey = `${key}:${col}:${row}:${cols}:${rows}`;
+    const cached = this.cellBoundsCache[cacheKey];
+    if (cached) return cached;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const c = canvas.getContext('2d', { willReadFrequently: true });
+    if (!c) return { x: 0, y: 0, w: sw, h: sh };
+    c.clearRect(0, 0, sw, sh);
+    c.drawImage(img, col * sw, row * sh, sw, sh, 0, 0, sw, sh);
+
+    const data = c.getImageData(0, 0, sw, sh).data;
+    let minX = sw, minY = sh, maxX = -1, maxY = -1;
+    for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+        if (data[(y * sw + x) * 4 + 3] > 8) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    const bounds = maxX < 0
+      ? { x: 0, y: 0, w: sw, h: sh }
+      : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    this.cellBoundsCache[cacheKey] = bounds;
+    return bounds;
+  }
+
+  // Authoritative renderer: trims transparent padding, preserves the cell aspect ratio,
+  // centers the visible artwork and NEVER rotates a sprite-sheet cell unless the caller
+  // explicitly asks for physical rotation on an asset that has no native orientation.
   public drawSpriteProportional(
     ctx: CanvasRenderingContext2D,
     key: string,
@@ -92,27 +133,31 @@ class SpriteManager {
     rows: number,
     cx: number,
     cy: number,
-    targetWidth: number,
-    targetHeight: number,
+    maxWidth: number,
+    maxHeight: number,
     rotation: number = 0
   ): boolean {
     const img = this.images[key];
-    if (img && img.complete && img.naturalWidth > 0) {
-      const sw = img.naturalWidth / cols;
-      const sh = img.naturalHeight / rows;
-      const sx = col * sw;
-      const sy = row * sh;
+    if (!img || !img.complete || img.naturalWidth <= 0) return false;
 
-      ctx.save();
-      ctx.translate(cx, cy);
-      if (rotation !== 0) {
-        ctx.rotate(rotation);
-      }
-      ctx.drawImage(img, sx, sy, sw, sh, -targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight);
-      ctx.restore();
-      return true;
-    }
-    return false;
+    const sw = Math.floor(img.naturalWidth / cols);
+    const sh = Math.floor(img.naturalHeight / rows);
+    const b = this.getCellBounds(key, col, row, cols, rows);
+    const scale = Math.min(maxWidth / b.w, maxHeight / b.h);
+    const dw = b.w * scale;
+    const dh = b.h * scale;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (rotation !== 0) ctx.rotate(rotation);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      img,
+      col * sw + b.x, row * sh + b.y, b.w, b.h,
+      -dw / 2, -dh / 2, dw, dh
+    );
+    ctx.restore();
+    return true;
   }
 
   // --- RENDERING HELPERS ---
@@ -184,22 +229,25 @@ class SpriteManager {
 
     if (opened) {
       col = 0;
-      row = 1; // Empty box frame
+      row = 1; // Empty box open frame
     } else {
       switch (reward) {
         case 'ball_1':
         case 'ball_2':
         case 'ball_3':
-          col = 2; row = 0; break; // 3-Balls box
+          col = 2; row = 0; break; // 3-Balls crate
         case 'points_500':
-          col = 3; row = 0; break; // Coins/Points box
+        case 'points_250':
+          col = 3; row = 0; break; // Coins/Points crate
         case 'power_explosive':
           col = 2; row = 1; break; // Bomb box
         case 'power_double':
         case 'power_triple':
           col = 1; row = 0; break; // Star box
+        case 'empty':
+          col = 0; row = 0; break; // Plain closed wooden crate
         default:
-          col = 1; row = 1; break; // Question mark box
+          col = 1; row = 1; break; // Question mark crate
       }
     }
 
@@ -215,27 +263,19 @@ class SpriteManager {
     y: number,
     r: number
   ): boolean {
-    let col = 0;
-    let row = 0;
-    switch (color) {
-      case '#ef4444': col = 0; row = 0; break; // Red
-      case '#3b82f6': col = 1; row = 0; break; // Blue
-      case '#10b981': col = 2; row = 0; break; // Green
-      case '#f59e0b': col = 3; row = 0; break; // Yellow
-      case '#8b5cf6': col = 0; row = 1; break; // Purple
-      case '#f97316': col = 1; row = 1; break; // Orange
-      case '#ec4899': col = 2; row = 1; break; // Pink
-      default: col = 0; row = 0; break;
-    }
-
-    // Globos must have premium visual presence (size 56x56)
-    return this.drawSpriteProportional(ctx, 'globos', col, row, 4, 4, x, y, 56, 56, 0);
+    const colors: Record<string, [number, number]> = {
+      '#ef4444': [0, 0], '#3b82f6': [1, 0], '#10b981': [2, 0], '#f59e0b': [3, 0],
+      '#8b5cf6': [0, 1], '#f97316': [1, 1], '#ec4899': [2, 1],
+    };
+    const [col, row] = colors[color] || [0, 0];
+    return this.drawSpriteProportional(ctx, 'globos', col, row, 4, 4, x, y, Math.max(76, r * 3.6), Math.max(92, r * 4.2), 0);
   }
 
   // 6. Flechas (flechas.png: 2 rows x 3 cols grid)
+  // Strict rule: NO rotar sprites. Cada celda del sprite sheet representa su dirección exacta.
   public drawArrow(
     ctx: CanvasRenderingContext2D,
-    angle: number,
+    direction: string | number | undefined,
     x: number,
     y: number,
     w: number,
@@ -246,43 +286,34 @@ class SpriteManager {
     let col = 0;
     let row = 0;
 
-    // Use actual force vector or angle to determine the EXACT frame of the 6 available directions
-    if (forceX !== undefined && forceY !== undefined) {
-      if (forceY < -50 && Math.abs(forceX) < 100) {
-        col = 0; row = 0; // Up
-      } else if (forceX > 50 && Math.abs(forceY) < 100) {
-        col = 1; row = 0; // Right
-      } else if (forceX < -50 && Math.abs(forceY) < 100) {
-        col = 2; row = 0; // Left
-      } else if (forceY > 50 && Math.abs(forceX) < 100) {
-        col = 0; row = 1; // Down
-      } else if (forceX > 50 && forceY > 50) {
-        col = 1; row = 1; // Down-Right
-      } else if (forceX < -50 && forceY > 50) {
-        col = 2; row = 1; // Down-Left
-      } else {
-        col = 0; row = 1; // Down
-      }
+    const dir = typeof direction === 'string' ? direction.toUpperCase() : '';
+    if (dir === 'UP') {
+      col = 0; row = 0;
+    } else if (dir === 'DOWN') {
+      col = 0; row = 1;
+    } else if (dir === 'RIGHT') {
+      col = 1; row = 0;
+    } else if (dir === 'LEFT') {
+      col = 2; row = 0;
+    } else if (dir === 'DIAG_RIGHT') {
+      col = 1; row = 1;
+    } else if (dir === 'DIAG_LEFT') {
+      col = 2; row = 1;
     } else {
-      const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      if (Math.abs(normAngle - 1.5 * Math.PI) < 0.25) {
-        col = 0; row = 0; // Up
-      } else if (normAngle < 0.25 || normAngle > 1.75 * Math.PI) {
-        col = 1; row = 0; // Right
-      } else if (Math.abs(normAngle - Math.PI) < 0.25) {
-        col = 2; row = 0; // Left
-      } else if (Math.abs(normAngle - 0.5 * Math.PI) < 0.25) {
-        col = 0; row = 1; // Down
-      } else if (normAngle > 0 && normAngle < 0.5 * Math.PI) {
-        col = 1; row = 1; // Down-Right
+      const fx = forceX !== undefined ? forceX : (typeof direction === 'number' ? Math.cos(direction) : 0);
+      const fy = forceY !== undefined ? forceY : (typeof direction === 'number' ? Math.sin(direction) : 1);
+      if (Math.abs(fx) > Math.abs(fy) * 1.5) {
+        col = fx > 0 ? 1 : 2; row = 0;
+      } else if (Math.abs(fy) > Math.abs(fx) * 1.5) {
+        col = 0; row = fy > 0 ? 1 : 0;
       } else {
-        col = 2; row = 1; // Down-Left
+        col = fx >= 0 ? 1 : 2; row = 1;
       }
     }
 
-    // Visual arrows are drawn perfectly with zero rotation because orientation is already in sheet.
-    // Scale is set to 48x48 so they are highly visible and professional.
-    return this.drawSpriteProportional(ctx, 'flechas', col, row, 3, 2, x, y, 48, 48, 0);
+    const size = Math.max(w, h, 68);
+    // Explicit angle 0: cell has the native arrow orientation
+    return this.drawSpriteProportional(ctx, 'flechas', col, row, 3, 2, x, y, size, size, 0);
   }
 
   // 7. Aceite (aceite.png: 1 row x 3 cols)
@@ -294,11 +325,9 @@ class SpriteManager {
     h: number,
     oilId: string = ''
   ): boolean {
-    const numericId = oilId ? (parseInt(oilId.replace(/\D/g, '')) || 0) : Math.floor(x);
-    const col = numericId % 3;
-
-    // Oil is flat horizontal centered puddle. Drawn with size 95x95 so puddle maintains its flat aspect ratio
-    return this.drawSpriteProportional(ctx, 'aceite', col, 0, 3, 1, x, y, 95, 95, 0);
+    const numericId = oilId ? (parseInt(oilId.replace(/\D/g, ''), 10) || 0) : Math.round(x + y);
+    const col = Math.abs(numericId) % 3;
+    return this.drawSpriteProportional(ctx, 'aceite', col, 0, 3, 1, x, y, Math.max(w, 76), Math.max(h, 46), 0);
   }
 
   // 8. Gear / Propeller / Shield Bumper (aspa_engranaje.png: 1 row x 3 items)
@@ -310,19 +339,9 @@ class SpriteManager {
     y: number,
     r: number
   ): boolean {
-    let col = 0;
-    let size = r * 2;
-    if (itemType === 'gear') {
-      col = 0;
-      size = r * 2.3; // Make gear details and teeth big and chunky!
-    } else if (itemType === 'windmill') {
-      col = 1;
-      size = r * 2.4; // Beautiful wide propeller
-    } else if (itemType === 'bumper') {
-      col = 2;
-      size = r * 2.6; // High visibility circular bumper
-    }
-
+    const col = itemType === 'gear' ? 0 : itemType === 'windmill' ? 1 : 2;
+    const size = itemType === 'gear' ? Math.max(88, r * 2.8) : itemType === 'windmill' ? Math.max(104, r * 3.0) : Math.max(74, r * 3.0);
+    // These assets are designed to rotate physically, so rotation is retained here.
     return this.drawSpriteProportional(ctx, 'aspa_engranaje', col, 0, 3, 1, x, y, size, size, angle);
   }
 
@@ -335,13 +354,9 @@ class SpriteManager {
     w: number,
     h: number
   ): boolean {
-    let col = 0;
-    if (angle > 0.1) col = 1; // Slanted right
-    else if (angle < -0.1) col = 2; // Slanted left
-    else col = 0; // Horizontal
-
-    // Trampolines must use their corresponding sprite cell drawn at 64x64 with zero rotation
-    return this.drawSpriteProportional(ctx, 'trampolin', col, 0, 3, 1, x, y, 64, 64, 0);
+    const col = angle > 0.1 ? 1 : angle < -0.1 ? 2 : 0;
+    const size = Math.max(88, w + 24, h + 24);
+    return this.drawSpriteProportional(ctx, 'trampolin', col, 0, 3, 1, x, y, size, size, 0);
   }
 
   // 10. Trabesaños / Wooden Plank (trabesanos.png: 1 row x 3 items)
@@ -357,57 +372,30 @@ class SpriteManager {
     const dy = y2 - y1;
     const len = Math.hypot(dx, dy);
     const angle = Math.atan2(dy, dx);
-
-    // Classify orientation of the plank to match horizontal, vertical, or diagonal cell
-    let col = 2; // Diagonal
-    const absAngle = Math.abs(angle);
-    if (Math.abs(dy) < 5 || absAngle < 0.1 || Math.abs(absAngle - Math.PI) < 0.1) {
-      col = 0; // Horizontal
-    } else if (Math.abs(dx) < 5 || Math.abs(absAngle - Math.PI / 2) < 0.1) {
-      col = 1; // Vertical
-    }
-
-    // Set fixed premium visual thickness so maderas are never squished to invisible lines
-    const visualThickness = Math.max(16, thickness * 1.5);
-
-    return this.drawSpriteProportional(ctx, 'trabesanos', col, 0, 3, 1, (x1 + x2) / 2, (y1 + y2) / 2, len, visualThickness, angle);
+    const abs = Math.abs(angle);
+    let col = 2;
+    if (abs < 0.12 || Math.abs(abs - Math.PI) < 0.12) col = 0;
+    else if (Math.abs(abs - Math.PI / 2) < 0.12) col = 1;
+    const size = Math.max(88, len + 20, thickness * 5);
+    // Native horizontal/vertical/diagonal cells. No rotation.
+    return this.drawSpriteProportional(ctx, 'trabesanos', col, 0, 3, 1, (x1 + x2) / 2, (y1 + y2) / 2, size, size, 0);
   }
 
-  // 11. Pelota / Metallic Ball (bolas.png 4x4 grid or pelota.png)
+  // 11. Pelota / Metallic Ball (Always the official standard metallic ball sprite)
   public drawBall(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    r: number,
-    ballType: string = 'standard'
+    r: number
   ): boolean {
-    // If metallic standard, draw pelota.png
-    if (ballType === 'standard') {
-      const pelotaImg = this.images['pelota'];
-      if (pelotaImg && pelotaImg.complete && pelotaImg.naturalWidth > 0) {
-        ctx.save();
-        ctx.translate(x, y);
-        // Draw centered and perfectly circular (using square draw box r*2.1)
-        ctx.drawImage(pelotaImg, 0, 0, pelotaImg.naturalWidth, pelotaImg.naturalHeight, -r * 1.05, -r * 1.05, r * 2.1, r * 2.1);
-        ctx.restore();
-        return true;
-      }
+    const imgPelota = this.images['pelota'];
+    if (imgPelota && imgPelota.complete && imgPelota.naturalWidth > 0) {
+      const size = Math.max(34, r * 2.8);
+      ctx.drawImage(imgPelota, x - size / 2, y - size / 2, size, size);
+      return true;
     }
-
-    // Otherwise draw special balls from bolas.png (Columns = 4, Rows = 4)
-    let col = 0;
-    let row = 0;
-    switch (ballType) {
-      case 'standard':  col = 0; row = 0; break;
-      case 'fast':      col = 1; row = 0; break;
-      case 'explosive': col = 2; row = 0; break;
-      case 'shield':    col = 3; row = 0; break;
-      case 'double':    col = 3; row = 3; break;
-      case 'triple':    col = 3; row = 1; break;
-      default:          col = 0; row = 0; break;
-    }
-
-    return this.drawSpriteProportional(ctx, 'bolas', col, row, 4, 4, x, y, r * 2.1, r * 2.1, 0);
+    // Fallback: Cell [0, 0] in bolas.png is the standard official metallic ball
+    return this.drawSpriteProportional(ctx, 'bolas', 0, 0, 4, 4, x, y, Math.max(34, r * 2.8), Math.max(34, r * 2.8), 0);
   }
 
   // 12. Pipe / Tubería (tuberias_dianas_bombas.png: Row 0, Col 0)
@@ -421,13 +409,18 @@ class SpriteManager {
   ): boolean {
     const dx = x2 - x1;
     const dy = y2 - y1;
-    const len = Math.hypot(dx, dy);
-    const angle = Math.atan2(dy, dx);
-
-    // Apply robust visual radius (pipe segment)
-    const visualRadius = Math.max(16, radius * 1.3);
-
-    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 0, 0, 6, 2, (x1 + x2) / 2, (y1 + y2) / 2, len, visualRadius * 2, angle);
+    const a = Math.atan2(dy, dx);
+    const abs = Math.abs(a);
+    let col = 0;
+    if (abs < 0.25 || abs > Math.PI - 0.25) col = 0;
+    else if (Math.abs(abs - Math.PI / 2) < 0.25) col = 1;
+    else if (dy >= 0 && dx >= 0) col = 2;
+    else if (dy >= 0 && dx < 0) col = 3;
+    else col = dx >= 0 ? 2 : 3;
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const size = Math.max(88, Math.hypot(dx, dy) + radius * 2.5);
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', col, 0, 6, 2, cx, cy, size, size, 0);
   }
 
   // 13. Target / Diana (tuberias_dianas_bombas.png: Row 1, Col 0 Red / Col 2 Yellow)
@@ -436,12 +429,14 @@ class SpriteManager {
     x: number,
     y: number,
     r: number,
-    isSpecial: boolean
+    isSpecial: boolean,
+    hitTimer: number = 0
   ): boolean {
     const col = isSpecial ? 2 : 0; // Col 2 = Yellow, Col 0 = Red
-
-    // Drawn with premium visual size (46x46)
-    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', col, 1, 6, 2, x, y, 46, 46, 0);
+    const baseSize = Math.max(70, r * 3.3);
+    const pulseScale = hitTimer > 0 ? 1 + (hitTimer / 0.3) * 0.25 : 1.0;
+    const size = baseSize * pulseScale;
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', col, 1, 6, 2, x, y, size, size, 0);
   }
 
   // 14. Bomb / Bomba (tuberias_dianas_bombas.png: Row 1, Col 4)
@@ -451,8 +446,7 @@ class SpriteManager {
     y: number,
     r: number
   ): boolean {
-    // Bomb is drawn with high quality visual size (44x44)
-    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 4, 1, 6, 2, x, y, 44, 44, 0);
+    return this.drawSpriteProportional(ctx, 'tuberias_dianas_bombas', 4, 1, 6, 2, x, y, Math.max(74, r * 3.6), Math.max(74, r * 3.6), 0);
   }
 }
 

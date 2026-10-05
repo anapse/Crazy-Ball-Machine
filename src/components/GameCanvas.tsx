@@ -3,9 +3,10 @@ import { GameEngine } from '../game/GameEngine';
 
 interface GameCanvasProps {
   engine: GameEngine;
+  isPlaying?: boolean;
 }
 
-export const GameCanvas: React.FC<GameCanvasProps> = ({ engine }) => {
+export const GameCanvas: React.FC<GameCanvasProps> = ({ engine, isPlaying = true }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -14,11 +15,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ engine }) => {
 
     // Set internal high-DPI canvas buffer resolution
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = 450 * dpr;
-    canvas.height = 800 * dpr;
+    const logicalWidth = 450;
+    const logicalHeight = isPlaying ? 720 : 800;
 
+    canvas.width = logicalWidth * dpr;
+    canvas.height = logicalHeight * dpr;
+
+    engine.setViewportDimensions(logicalWidth, logicalHeight);
     engine.attachCanvas(canvas);
-  }, [engine]);
+  }, [engine, isPlaying]);
 
   return (
     <canvas
