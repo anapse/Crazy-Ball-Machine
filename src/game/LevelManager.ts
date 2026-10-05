@@ -29,6 +29,220 @@ class SeededRNG {
 }
 
 export class LevelManager {
+  private static getBounds(obj: MachineObject): any {
+    switch (obj.type) {
+      case 'breakable_block':
+        return { type: 'rect', x: obj.x, y: obj.y, w: obj.width, h: obj.height };
+      case 'ramp':
+      case 'moving_bar':
+      case 'lever':
+      case 'pipe':
+        return { 
+          type: 'segment', 
+          x: obj.x, 
+          y: obj.y, 
+          x2: (obj as any).x2 ?? (obj.x + ((obj as any).length ?? 80)), 
+          y2: (obj as any).y2 ?? obj.y, 
+          thickness: (obj as any).thickness ?? ((obj as any).radius ?? 12) * 2 
+        };
+      case 'trampoline':
+        return { type: 'rect', x: obj.x, y: obj.y, w: obj.width, h: obj.height };
+      case 'gear':
+      case 'windmill':
+      case 'bumper':
+      case 'target':
+      case 'bomb':
+      case 'balloon':
+      case 'magnet': {
+        const rad = (obj as any).radius || (obj as any).armLength || 20;
+        return { type: 'circle', x: obj.x, y: obj.y, r: rad };
+      }
+      case 'arrow':
+      case 'fan':
+      case 'box':
+        return { type: 'rect', x: obj.x, y: obj.y, w: obj.width || 44, h: obj.height || 44 };
+      case 'oil':
+        return { type: 'rect', x: obj.x, y: obj.y, w: obj.width, h: obj.height };
+      default:
+        return { type: 'circle', x: (obj as any).x, y: (obj as any).y, r: 20 };
+    }
+  }
+
+  private static getAABB(b: any, padding: number): { minX: number, maxX: number, minY: number, maxY: number } {
+    if (b.type === 'circle') {
+      return {
+        minX: b.x - b.r - padding,
+        maxX: b.x + b.r + padding,
+        minY: b.y - b.r - padding,
+        maxY: b.y + b.r + padding,
+      };
+    } else if (b.type === 'rect') {
+      const halfW = b.w / 2;
+      const halfH = b.h / 2;
+      return {
+        minX: b.x - halfW - padding,
+        maxX: b.x + halfW + padding,
+        minY: b.y - halfH - padding,
+        maxY: b.y + halfH + padding,
+      };
+    } else if (b.type === 'segment') {
+      const minX = Math.min(b.x, b.x2);
+      const maxX = Math.max(b.x, b.x2);
+      const minY = Math.min(b.y, b.y2);
+      const maxY = Math.max(b.y, b.y2);
+      const t = b.thickness / 2;
+      return {
+        minX: minX - t - padding,
+        maxX: maxX + t + padding,
+        minY: minY - t - padding,
+        maxY: maxY + t + padding,
+      };
+    }
+    return { minX: b.x - padding, maxX: b.x + padding, minY: b.y - padding, maxY: b.y + padding };
+  }
+
+  private static checkOverlap(o1: MachineObject, o2: MachineObject, padding: number = 32): boolean {
+    const b1 = this.getBounds(o1);
+    const b2 = this.getBounds(o2);
+
+    const box1 = this.getAABB(b1, padding);
+    const box2 = this.getAABB(b2, padding);
+
+    return !(
+      box1.maxX < box2.minX ||
+      box1.minX > box2.maxX ||
+      box1.maxY < box2.minY ||
+      box1.minY > box2.maxY
+    );
+  }
+
+  private static getRequiredPadding(o1: MachineObject, o2: MachineObject): number {
+    if (o1.type === 'breakable_block' && o2.type === 'breakable_block') {
+      if ((o1 as any).clusterId !== undefined && (o1 as any).clusterId === (o2 as any).clusterId) {
+        return -2; // Allowed to touch side-by-side inside same cluster
+      }
+      return 36; // Spacing between different clusters
+    }
+
+    const isLarge1 = o1.type === 'gear' || o1.type === 'windmill' || o1.type === 'fan' || o1.type === 'ramp' || o1.type === 'pipe';
+    const isLarge2 = o2.type === 'gear' || o2.type === 'windmill' || o2.type === 'fan' || o2.type === 'ramp' || o2.type === 'pipe';
+
+    if (isLarge1 && isLarge2) {
+      return 60; // Extra generous gap between multiple heavy elements
+    }
+    if (isLarge1 || isLarge2) {
+      return 45; // Generous gap between heavy and medium elements
+    }
+
+    return 24; // Safe minimum distance between standard elements
+  }
+
+  private static tryPlaceObject(obj: MachineObject, existing: MachineObject[]): boolean {
+    for (const other of existing) {
+      const pad = this.getRequiredPadding(obj, other);
+      if (this.checkOverlap(obj, other, pad)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static findValidPosition(
+    obj: MachineObject,
+    existing: MachineObject[],
+    worldWidth: number,
+    minY: number,
+    maxY: number
+  ): { x: number; y: number } | null {
+    const origX = obj.x;
+    const origY = obj.y;
+
+    const steps = [
+      { dx: 0, dy: 0 },
+      // Ring 1 (15px)
+      { dx: -15, dy: 0 }, { dx: 15, dy: 0 }, { dx: 0, dy: -15 }, { dx: 0, dy: 15 },
+      // Ring 2 (30px)
+      { dx: -30, dy: 0 }, { dx: 30, dy: 0 }, { dx: 0, dy: -30 }, { dx: 0, dy: 30 },
+      { dx: -22, dy: -22 }, { dx: 22, dy: -22 }, { dx: -22, dy: 22 }, { dx: 22, dy: 22 },
+      // Ring 3 (45px)
+      { dx: -45, dy: 0 }, { dx: 45, dy: 0 }, { dx: 0, dy: -45 }, { dx: 0, dy: 45 },
+      { dx: -32, dy: -32 }, { dx: 32, dy: -32 }, { dx: -32, dy: 32 }, { dx: 32, dy: 32 },
+      // Ring 4 (60px)
+      { dx: -60, dy: 0 }, { dx: 60, dy: 0 }, { dx: 0, dy: -60 }, { dx: 0, dy: 60 },
+      // Ring 5 (80px)
+      { dx: -80, dy: 0 }, { dx: 80, dy: 0 }, { dx: 0, dy: -80 }, { dx: 0, dy: 80 },
+      // Ring 6 (100px)
+      { dx: -100, dy: 0 }, { dx: 100, dy: 0 }, { dx: 0, dy: -100 }, { dx: 0, dy: 100 },
+      // Ring 7 (120px)
+      { dx: -120, dy: 0 }, { dx: 120, dy: 0 }, { dx: 0, dy: -120 }, { dx: 0, dy: 120 },
+    ];
+
+    for (const step of steps) {
+      const trialX = origX + step.dx;
+      const trialY = origY + step.dy;
+
+      const safetyMargin = 30;
+      if (trialX < safetyMargin || trialX > worldWidth - safetyMargin) continue;
+      if (trialY < minY || trialY > maxY) continue;
+
+      obj.x = trialX;
+      obj.y = trialY;
+
+      if (obj.type === 'ramp' || obj.type === 'pipe' || obj.type === 'moving_bar' || obj.type === 'lever') {
+        const dx = (obj as any).x2 !== undefined ? (obj as any).x2 - origX : 0;
+        const dy = (obj as any).y2 !== undefined ? (obj as any).y2 - origY : 0;
+        if (dx !== 0 || dy !== 0) {
+          (obj as any).x2 = trialX + dx;
+          (obj as any).y2 = trialY + dy;
+        }
+      }
+
+      if (this.tryPlaceObject(obj, existing)) {
+        return { x: trialX, y: trialY };
+      }
+    }
+
+    return null;
+  }
+
+  private static getBlockClusterPattern(patternIndex: number): { dx: number; dy: number }[] {
+    switch (patternIndex) {
+      case 0: // Flat
+        return [
+          { dx: 0, dy: 0 },
+          { dx: 44, dy: 0 },
+          { dx: 88, dy: 0 },
+          { dx: 132, dy: 0 },
+          { dx: 176, dy: 0 },
+        ];
+      case 1: // Slanted
+        return [
+          { dx: 0, dy: 0 },
+          { dx: 44, dy: 10 },
+          { dx: 88, dy: 20 },
+          { dx: 132, dy: 30 },
+          { dx: 176, dy: 40 },
+        ];
+      case 2: // Inverted V / Arch
+        return [
+          { dx: 0, dy: 16 },
+          { dx: 44, dy: 8 },
+          { dx: 88, dy: 0 },
+          { dx: 132, dy: 8 },
+          { dx: 176, dy: 16 },
+        ];
+      case 3: // V-Shape
+      default:
+        return [
+          { dx: 0, dy: 0 },
+          { dx: 44, dy: 8 },
+          { dx: 88, dy: 16 },
+          { dx: 132, dy: 8 },
+          { dx: 176, dy: 0 },
+        ];
+    }
+  }
+
   public static getChannels(): TopChannel[] {
     const channelWidth = 64;
     const gap = (GAME_CONSTANTS.WORLD_WIDTH - GAME_CONSTANTS.CHANNEL_COUNT * channelWidth) / (GAME_CONSTANTS.CHANNEL_COUNT + 1);
@@ -219,347 +433,359 @@ export class LevelManager {
     const objects: MachineObject[] = [];
 
     const availableColors: BlockColor[] = ['rojo', 'azul', 'verde', 'amarillo', 'naranja', 'morado', 'rosa'];
+    const balloonColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899'];
 
-    // Track vertical bands to prevent bottlenecks and ensure continuous descent routes
-    const yBands = [
-      { min: 250, max: 550 },
-      { min: 600, max: 900 },
-      { min: 950, max: 1250 },
-      { min: 1300, max: 1600 },
-      { min: 1650, max: 1950 },
-      { min: 2000, max: 2350 },
-    ];
+    // 12 precise vertical segments/tramos to space out mechanics and block structures perfectly
+    const tramosCount = 12;
+    const tramoHeight = 175;
+    const tramoStartY = 250;
 
     let blockCounter = 0;
+    let clusterCounter = 0;
 
-    // --- 1. GENERATE 60+ BREAKABLE BLOCKS IN CONTIGUOUS CLUSTERS (3, 4, 5 blocks per cluster) ---
-    yBands.forEach((band) => {
-      const clusterCount = rng.rangeInt(3, 4); // Boost clusters to guarantee >= 60 blocks esparcidos
-      for (let c = 0; c < clusterCount; c++) {
-        const clusterSize = rng.rangeInt(3, 5); // 3, 4, 5 blocks per cluster
-        const color = rng.choice(availableColors);
-        const hp = color === 'morado' || color === 'rosa' ? 3 : color === 'verde' || color === 'naranja' ? 2 : 1;
+    for (let t = 0; t < tramosCount; t++) {
+      const minY = tramoStartY + t * tramoHeight;
+      const maxY = minY + tramoHeight;
+      const midY = (minY + maxY) / 2;
 
-        const startX = rng.rangeInt(50, width - 50 - clusterSize * 44);
-        const startY = rng.range(band.min + 20, band.max - 40);
+      // --- A. PLACE 1 HIGH-VARIATION HORIZONTAL OR STAGGERED BLOCK CLUSTER OF EXACTLY 5 BLOCKS (Guarantees exactly 60 blocks) ---
+      const clusterSize = 5;
+      const color = rng.choice(availableColors);
+      const hp = color === 'morado' || color === 'rosa' ? 3 : color === 'verde' || color === 'naranja' ? 2 : 1;
+      
+      const patternIdx = rng.rangeInt(0, 3); // 4 custom cluster layouts (flat, slanted, arch, V-shape) to break breakout monotony!
+      const pattern = this.getBlockClusterPattern(patternIdx);
 
+      const startX = rng.rangeInt(40, width - 40 - 176);
+      const startY = rng.range(minY + 20, maxY - 60);
+      clusterCounter++;
+
+      const shifts = [
+        { dx: 0, dy: 0 },
+        { dx: -20, dy: 0 }, { dx: 20, dy: 0 }, { dx: 0, dy: -20 }, { dx: 0, dy: 20 },
+        { dx: -40, dy: 0 }, { dx: 40, dy: 0 }, { dx: 0, dy: -40 }, { dx: 0, dy: 40 },
+        { dx: -60, dy: 0 }, { dx: 60, dy: 0 }, { dx: 0, dy: -60 }, { dx: 0, dy: 60 },
+      ];
+
+      for (const shift of shifts) {
+        const trialStartX = startX + shift.dx;
+        const trialStartY = startY + shift.dy;
+
+        if (trialStartX < 30 || trialStartX + 176 > width - 30) continue;
+        if (trialStartY < minY + 15 || trialStartY > maxY - 15) continue;
+
+        const candidates: MachineObject[] = [];
         for (let i = 0; i < clusterSize; i++) {
-          objects.push({
+          const pt = pattern[i];
+          candidates.push({
             id: `blk_${++blockCounter}`,
             type: 'breakable_block',
-            x: startX + i * 44,
-            y: startY,
+            x: trialStartX + pt.dx,
+            y: trialStartY + pt.dy,
             width: 40,
             height: 24,
             health: hp,
             maxHealth: hp,
             blockColor: color,
-          });
+            clusterId: clusterCounter,
+          } as any);
+        }
+
+        let candidatesValid = true;
+        for (const cand of candidates) {
+          if (!this.tryPlaceObject(cand, objects)) {
+            candidatesValid = false;
+            break;
+          }
+        }
+
+        if (candidatesValid) {
+          objects.push(...candidates);
+          break;
+        } else {
+          blockCounter -= clusterSize; // Revert block ID increments on overlap
         }
       }
-    });
 
-    // --- 2. WOODEN BEAMS / PLANKS (6-12) - STRICTLY NO OPPOSING FUNNEL RAMPS (\ /) ---
-    const plankCount = rng.rangeInt(8, 12);
-    let plankCounter = 0;
-    yBands.forEach((band) => {
-      if (plankCounter >= plankCount) return;
+      // --- B. PLACE ASSIGNED PROCEDURAL MECHANICS IN THIS TRAMO ---
+      // Wooden Planks (Plank assigned to tramos 0, 1, 2, 3, 5, 6, 7, 8, 9, 10 alternating sides)
+      if (t !== 4 && t !== 11) {
+        const isLeftPlank = t % 2 === 0;
+        const angle = isLeftPlank ? 0.3 : -0.3;
+        const x1 = isLeftPlank ? 30 : width - 160;
+        const plank = {
+          id: `plank_${t + 1}`,
+          type: 'ramp',
+          x: x1,
+          y: midY,
+          x2: x1 + Math.cos(angle) * 130,
+          y2: midY + Math.sin(angle) * 130,
+          thickness: 14,
+        } as MachineObject;
 
-      const y = rng.range(band.min + 30, band.max - 30);
-      const isLeft = rng.next() > 0.5;
-      const angle = (isLeft ? 0.3 : -0.3) + rng.range(-0.05, 0.05);
+        this.findValidPosition(plank, objects, width, minY + 10, maxY - 10);
+        objects.push(plank);
+      }
 
-      // Single plank per tier or offset planks to prevent funnels
-      const x1 = isLeft ? 50 : width - 170;
-      const x2 = x1 + Math.cos(angle) * 110;
-      const y2 = y + Math.sin(angle) * 110;
+      // Gears (assigned to tramos 0, 3, 6, 9)
+      if (t === 0 || t === 3 || t === 6 || t === 9) {
+        const gear = {
+          id: `gear_${t}`,
+          type: 'gear',
+          x: rng.range(70, width - 70),
+          y: rng.range(minY + 20, maxY - 20),
+          radius: rng.rangeInt(30, 42),
+          teeth: 8,
+          speed: (rng.next() > 0.5 ? 1 : -1) * rng.range(0.8, 1.5),
+        } as MachineObject;
 
-      objects.push({
-        id: `plank_${++plankCounter}`,
-        type: 'ramp',
-        x: x1,
-        y: y,
-        x2: x2,
-        y2: y2,
-        thickness: 14,
-      });
-    });
+        this.findValidPosition(gear, objects, width, minY + 15, maxY - 15);
+        objects.push(gear);
+      }
 
-    // --- 3. TRAMPOLINES (3-6) ---
-    const trampCount = rng.rangeInt(4, 6);
-    for (let i = 0; i < trampCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(80, width - 80);
-      const y = rng.range(band.min + 40, band.max - 40);
-      const angle = rng.choice([0, 0.2, -0.2]);
+      // Windmills (assigned to tramos 1, 4, 7, 10)
+      if (t === 1 || t === 4 || t === 7 || t === 10) {
+        const wm = {
+          id: `wm_${t}`,
+          type: 'windmill',
+          x: rng.range(75, width - 75),
+          y: rng.range(minY + 20, maxY - 20),
+          arms: 4,
+          armLength: 42,
+          thickness: 10,
+          rotationSpeed: (rng.next() > 0.5 ? 1.4 : -1.4),
+        } as MachineObject;
 
-      objects.push({
-        id: `tramp_${i + 1}`,
-        type: 'trampoline',
-        x,
-        y,
-        width: 48,
-        height: 18,
-        angle,
-        bounceForce: 630,
-        animTimer: 0,
-      });
+        this.findValidPosition(wm, objects, width, minY + 15, maxY - 15);
+        objects.push(wm);
+      }
+
+      // Bumpers (assigned to tramos 0, 2, 4, 6, 8, 10)
+      if (t === 0 || t === 2 || t === 4 || t === 6 || t === 8 || t === 10) {
+        const bmp = {
+          id: `bmp_${t}`,
+          type: 'bumper',
+          x: rng.range(60, width - 60),
+          y: rng.range(minY + 20, maxY - 20),
+          radius: 20,
+          bounceForce: 650,
+          points: 30,
+        } as MachineObject;
+
+        this.findValidPosition(bmp, objects, width, minY + 15, maxY - 15);
+        objects.push(bmp);
+      }
+
+      // Balloons (assigned to tramos 1, 2, 3, 5, 6, 7, 9, 10, 11 - sometimes 2!)
+      if (t === 1 || t === 2 || t === 3 || t === 5 || t === 6 || t === 7 || t === 9 || t === 10 || t === 11) {
+        const balloonCountInTramo = t === 3 || t === 7 ? 2 : 1;
+        for (let b = 0; b < balloonCountInTramo; b++) {
+          const isMoving = rng.next() > 0.5;
+          const bal = {
+            id: `bal_${t}_${b}`,
+            type: 'balloon',
+            x: rng.range(60, width - 60),
+            y: rng.range(minY + 20, maxY - 20),
+            radius: 18,
+            color: rng.choice(balloonColors),
+            popped: false,
+            floatOffset: 0,
+            motionType: isMoving ? 'patrol_h' : 'static',
+            moveRange: isMoving ? rng.rangeInt(30, 50) : 0,
+            moveSpeed: rng.range(0.8, 1.4),
+          } as MachineObject;
+
+          this.findValidPosition(bal, objects, width, minY + 15, maxY - 15);
+          objects.push(bal);
+        }
+      }
+
+      // Trampolines (assigned to tramos 2, 5, 8, 11)
+      if (t === 2 || t === 5 || t === 8 || t === 11) {
+        const tramp = {
+          id: `tramp_${t}`,
+          type: 'trampoline',
+          x: rng.range(70, width - 70),
+          y: rng.range(minY + 20, maxY - 20),
+          width: 48,
+          height: 18,
+          angle: rng.choice([0, 0.2, -0.2]),
+          bounceForce: 630,
+          animTimer: 0,
+        } as MachineObject;
+
+        this.findValidPosition(tramp, objects, width, minY + 15, maxY - 15);
+        objects.push(tramp);
+      }
+
+      // Speed Arrows (assigned to tramos 1, 3, 5, 7, 9, 11)
+      if (t === 1 || t === 3 || t === 5 || t === 7 || t === 9 || t === 11) {
+        const isRightArrow = rng.next() > 0.5;
+        const arrow = {
+          id: `arr_${t}`,
+          type: 'arrow',
+          x: rng.range(70, width - 70),
+          y: rng.range(minY + 20, maxY - 20),
+          width: 40,
+          height: 36,
+          forceX: isRightArrow ? 280 : -280,
+          forceY: 200,
+          angle: isRightArrow ? 0.35 : -0.35,
+        } as MachineObject;
+
+        this.findValidPosition(arrow, objects, width, minY + 15, maxY - 15);
+        objects.push(arrow);
+      }
+
+      // Oil Slicks (assigned to tramos 0, 4, 8, 11)
+      if (t === 0 || t === 4 || t === 8 || t === 11) {
+        const oil = {
+          id: `oil_${t}`,
+          type: 'oil',
+          x: rng.range(80, width - 80),
+          y: rng.range(minY + 20, maxY - 20),
+          width: 95,
+          height: 14,
+          boostFactor: 1.45,
+        } as MachineObject;
+
+        this.findValidPosition(oil, objects, width, minY + 15, maxY - 15);
+        objects.push(oil);
+      }
+
+      // Targets (assigned to tramos 1, 3, 7, 9, 11)
+      if (t === 1 || t === 3 || t === 7 || t === 9 || t === 11) {
+        const target = {
+          id: `target_${t}`,
+          type: 'target',
+          x: rng.range(60, width - 60),
+          y: rng.range(minY + 20, maxY - 20),
+          radius: 18,
+          points: 100,
+          hit: false,
+          isSpecial: t % 2 === 0,
+        } as MachineObject;
+
+        this.findValidPosition(target, objects, width, minY + 15, maxY - 15);
+        objects.push(target);
+      }
+
+      // Bombs (assigned to tramos 2, 6, 10)
+      if (t === 2 || t === 6 || t === 10) {
+        const bomb = {
+          id: `bomb_${t}`,
+          type: 'bomb',
+          x: rng.range(60, width - 60),
+          y: rng.range(minY + 20, maxY - 20),
+          radius: 16,
+        } as MachineObject;
+
+        this.findValidPosition(bomb, objects, width, minY + 15, maxY - 15);
+        objects.push(bomb);
+      }
+
+      // Pipes / Tuberías (assigned to tramos 0, 4, 8, 11)
+      if (t === 0 || t === 4 || t === 8 || t === 11) {
+        const isLeftToRight = t % 2 === 0;
+        const x1 = isLeftToRight ? 50 : width - 50;
+        const x2 = isLeftToRight ? 180 : width - 180;
+        const pipe = {
+          id: `pipe_${t}`,
+          type: 'pipe',
+          x: x1,
+          y: minY + 30,
+          x2: x2,
+          y2: minY + 90,
+          radius: 14,
+          boostSpeed: 75,
+        } as any;
+
+        this.findValidPosition(pipe, objects, width, minY + 15, maxY - 15);
+        objects.push(pipe);
+      }
+
+      // Moving bars (assigned to tramos 2, 8)
+      if (t === 2 || t === 8) {
+        const mbar = {
+          id: `mbar_${t}`,
+          type: 'moving_bar',
+          x: rng.range(120, width - 120),
+          y: rng.range(minY + 20, maxY - 20),
+          length: 80,
+          thickness: 12,
+          pivotType: 'center',
+          motionType: 'patrol_h',
+          baseX: 0, // will be overwritten by engine based on starting position
+          baseY: 0,
+          moveRange: 55,
+          moveSpeed: 1.1,
+        } as any;
+
+        this.findValidPosition(mbar, objects, width, minY + 15, maxY - 15);
+        // Sync starting physics baseline coordinates with its found valid position
+        mbar.baseX = mbar.x;
+        mbar.baseY = mbar.y;
+        objects.push(mbar);
+      }
+
+      // Levers (assigned to tramos 3, 9)
+      if (t === 3 || t === 9) {
+        const lever = {
+          id: `lever_${t}`,
+          type: 'lever',
+          x: rng.range(80, width - 150),
+          y: rng.range(minY + 20, maxY - 20),
+          length: 75,
+          thickness: 12,
+          pivotType: 'left',
+          motionType: 'lever',
+          baseAngle: 0.3,
+          maxAngle: -0.3,
+          triggeredAngle: -0.3,
+          isTriggered: false,
+        } as any;
+
+        this.findValidPosition(lever, objects, width, minY + 15, maxY - 15);
+        objects.push(lever);
+      }
+
+      // Fans (assigned to tramos 4, 10)
+      if (t === 4 || t === 10) {
+        const isLeftFan = t === 4;
+        const fan = {
+          id: `fan_${t}`,
+          type: 'fan',
+          x: isLeftFan ? 50 : width - 50,
+          y: rng.range(minY + 30, maxY - 30),
+          width: 44,
+          height: 44,
+          forceX: isLeftFan ? 380 : -380,
+          forceY: 0,
+          range: 180,
+          bladeAngle: 0,
+        } as any;
+
+        this.findValidPosition(fan, objects, width, minY + 15, maxY - 15);
+        objects.push(fan);
+      }
+
+      // Magnets (assigned to tramos 5, 11)
+      if (t === 5 || t === 11) {
+        const magnet = {
+          id: `magnet_${t}`,
+          type: 'magnet',
+          x: rng.range(100, width - 100),
+          y: rng.range(minY + 10, maxY - 10),
+          radius: 35,
+          strength: 5.5,
+        } as any;
+
+        this.findValidPosition(magnet, objects, width, minY + 15, maxY - 15);
+        objects.push(magnet);
+      }
     }
 
-    // --- 4. GEARS & PROPELLERS / WINDMILLS (aspa_engranaje.png) ---
-    const gearCount = rng.rangeInt(4, 6);
-    for (let i = 0; i < gearCount; i++) {
-      const band = yBands[i % yBands.length];
-      const x = rng.range(90, width - 90);
-      const y = rng.range(band.min + 50, band.max - 50);
-
-      objects.push({
-        id: `gear_${i + 1}`,
-        type: 'gear',
-        x,
-        y,
-        radius: rng.rangeInt(30, 42),
-        teeth: 8,
-        speed: (rng.next() > 0.5 ? 1 : -1) * rng.range(0.8, 1.5),
-      });
-    }
-
-    const windmillCount = rng.rangeInt(3, 5);
-    for (let i = 0; i < windmillCount; i++) {
-      const band = yBands[(i + 2) % yBands.length];
-      const x = rng.range(100, width - 100);
-      const y = rng.range(band.min + 60, band.max - 60);
-
-      objects.push({
-        id: `wm_${i + 1}`,
-        type: 'windmill',
-        x,
-        y,
-        arms: 4,
-        armLength: 42,
-        thickness: 10,
-        rotationSpeed: (rng.next() > 0.5 ? 1.4 : -1.4),
-      });
-    }
-
-    // --- 5. PINBALL BUMPERS (4-8) ---
-    const bumperCount = rng.rangeInt(5, 8);
-    for (let i = 0; i < bumperCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(60, width - 60);
-      const y = rng.range(band.min + 20, band.max - 20);
-
-      objects.push({
-        id: `bmp_${i + 1}`,
-        type: 'bumper',
-        x,
-        y,
-        radius: 20,
-        bounceForce: 650,
-        points: 30,
-      });
-    }
-
-    // --- 6. GLOBOS / BALLOONS (8-15) (globos.png) ---
-    const balloonColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#f97316', '#ec4899'];
-    const balloonCount = rng.rangeInt(9, 14);
-    for (let i = 0; i < balloonCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(70, width - 70);
-      const y = rng.range(band.min + 10, band.max - 10);
-      const isMoving = rng.next() > 0.4;
-
-      objects.push({
-        id: `bal_${i + 1}`,
-        type: 'balloon',
-        x,
-        y,
-        radius: 18,
-        color: rng.choice(balloonColors),
-        popped: false,
-        floatOffset: 0,
-        motionType: isMoving ? 'patrol_h' : 'static',
-        moveRange: isMoving ? rng.rangeInt(30, 50) : 0,
-        moveSpeed: rng.range(0.8, 1.4),
-      });
-    }
-
-    // --- 7. FLECHAS TURBO / SPEED ARROWS (4-8) (flechas.png) ---
-    const arrowCount = rng.rangeInt(5, 8);
-    for (let i = 0; i < arrowCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(80, width - 80);
-      const y = rng.range(band.min + 30, band.max - 30);
-      const isRight = x < width / 2;
-      const angle = isRight ? 0.35 : -0.35;
-
-      objects.push({
-        id: `arr_${i + 1}`,
-        type: 'arrow',
-        x,
-        y,
-        width: 40,
-        height: 36,
-        forceX: isRight ? 280 : -280,
-        forceY: 200,
-        angle,
-      });
-    }
-
-    // --- 8. ACEITE / OIL SLICKS (3-6) (aceite.png) ---
-    const oilCount = rng.rangeInt(4, 6);
-    for (let i = 0; i < oilCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(90, width - 90);
-      const y = rng.range(band.min + 20, band.max - 20);
-
-      objects.push({
-        id: `oil_${i + 1}`,
-        type: 'oil',
-        x,
-        y,
-        width: 95,
-        height: 14,
-        boostFactor: 1.45,
-      });
-    }
-
-    // --- 9. PIPES / TUBERÍAS (3-6) (tuberias_dianas_bombas.png Row 0) ---
-    const pipeCount = rng.rangeInt(3, 5);
-    for (let i = 0; i < pipeCount; i++) {
-      const band = yBands[(i * 2) % yBands.length];
-      const isLeftToRight = i % 2 === 0;
-      const x1 = isLeftToRight ? 50 : width - 50;
-      const x2 = isLeftToRight ? 180 : width - 180;
-      const y1 = rng.range(band.min + 40, band.max - 60);
-      const y2 = y1 + 60;
-
-      objects.push({
-        id: `pipe_${i + 1}`,
-        type: 'pipe',
-        x: x1,
-        y: y1,
-        x2: x2,
-        y2: y2,
-        radius: 14,
-        boostSpeed: 75,
-      } as any);
-    }
-
-    // --- 10. TARGETS / DIANAS (3-6) (tuberias_dianas_bombas.png Row 1) ---
-    const targetCount = rng.rangeInt(4, 6);
-    for (let i = 0; i < targetCount; i++) {
-      const band = rng.choice(yBands);
-      const x = rng.range(70, width - 70);
-      const y = rng.range(band.min + 30, band.max - 30);
-
-      objects.push({
-        id: `target_${i + 1}`,
-        type: 'target',
-        x,
-        y,
-        radius: 18,
-        points: 100,
-        hit: false,
-        isSpecial: i % 2 === 0,
-      } as any);
-    }
-
-    // --- 11. BOMBS / HAZARDS (2-4) (tuberias_dianas_bombas.png Row 1 Col 4) ---
-    const bombCount = rng.rangeInt(2, 4);
-    for (let i = 0; i < bombCount; i++) {
-      const band = yBands[(i * 2 + 1) % yBands.length];
-      const x = rng.range(100, width - 100);
-      const y = rng.range(band.min + 50, band.max - 50);
-
-      objects.push({
-        id: `bomb_${i + 1}`,
-        type: 'bomb',
-        x,
-        y,
-        radius: 16,
-      } as any);
-    }
-
-    // --- 12. RESTORING EXOTIC MECÁNICAS (Fase 5 RESTORE: fan, lever, moving_bar, magnet) ---
-    // Moving bars
-    for (let i = 0; i < 2; i++) {
-      const band = yBands[i + 1];
-      const x = rng.range(120, width - 120);
-      const y = rng.range(band.min + 15, band.max - 15);
-      objects.push({
-        id: `mbar_${i + 1}`,
-        type: 'moving_bar',
-        x,
-        y,
-        length: 80,
-        thickness: 12,
-        pivotType: 'center',
-        motionType: 'patrol_h',
-        baseX: x,
-        baseY: y,
-        moveRange: 55,
-        moveSpeed: 1.1,
-      } as any);
-    }
-
-    // Levers
-    for (let i = 0; i < 2; i++) {
-      const band = yBands[i + 3];
-      const x = rng.range(80, width - 150);
-      const y = rng.range(band.min + 20, band.max - 20);
-      objects.push({
-        id: `lever_${i + 1}`,
-        type: 'lever',
-        x,
-        y,
-        length: 75,
-        thickness: 12,
-        pivotType: 'left',
-        motionType: 'lever',
-        baseAngle: 0.3,
-        maxAngle: -0.3,
-        triggeredAngle: -0.3,
-        isTriggered: false,
-      } as any);
-    }
-
-    // Fans (pointing horizontally to push the ball)
-    for (let i = 0; i < 2; i++) {
-      const band = yBands[i + 2];
-      const isLeft = i % 2 === 0;
-      const x = isLeft ? 50 : width - 50;
-      const y = rng.range(band.min + 30, band.max - 30);
-      objects.push({
-        id: `fan_${i + 1}`,
-        type: 'fan',
-        x,
-        y,
-        width: 44,
-        height: 44,
-        forceX: isLeft ? 380 : -380,
-        forceY: 0,
-        range: 180,
-        bladeAngle: 0,
-      } as any);
-    }
-
-    // Magnets
-    for (let i = 0; i < 2; i++) {
-      const band = yBands[i + 1];
-      const x = rng.range(100, width - 100);
-      const y = rng.range(band.min + 10, band.max - 10);
-      objects.push({
-        id: `magnet_${i + 1}`,
-        type: 'magnet',
-        x,
-        y,
-        radius: 35,
-        strength: 5.5,
-      } as any);
-    }
-
-    // --- 13. BOTTOM TIER: 7 PRIZE BOXES (cajas.png) ---
+    // --- 14. BOTTOM TIER: 7 PRIZE BOXES (cajas.png) ---
     const bottomBoxes = this.createBottomBoxes([
       'ball_1',
       'power_explosive',
@@ -579,7 +805,7 @@ export class LevelManager {
 
     const allObjects = [...objects, ...bottomBumpers, ...bottomBoxes];
 
-    // --- 14. REAL PATHFINDING CONNECTIVITY VALIDATION ---
+    // --- 15. REAL PATHFINDING CONNECTIVITY VALIDATION ---
     const valid = this.isPlayable(allObjects, width, height);
     if (!valid) return null; // Reject layout & let retry handle next seed
 
