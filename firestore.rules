@@ -18,6 +18,15 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
+    // Analytics Sessions collection
+    match /analytics/{sessionId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.sessionId is string
+                            && request.resource.data.playerName is string
+                            && request.resource.data.score is number;
+      allow delete: if isAdmin();
+    }
+    
     // Record history
     match /recordHistory/{recordId} {
       allow read: if true;

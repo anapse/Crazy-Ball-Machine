@@ -11,12 +11,20 @@ interface LeaderboardModalProps {
 export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onClose }) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadLeaderboard = async () => {
     setLoading(true);
-    const data = await leaderboardService.getTop50();
-    setEntries(data);
-    setLoading(false);
+    setError(null);
+    try {
+      const data = await leaderboardService.getTop50();
+      setEntries(data);
+    } catch (err) {
+      console.error('Error fetching Top 50 from Firebase:', err);
+      setError('No se pudo cargar el Top 50 desde Firebase.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -65,6 +73,16 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ isOpen, onCl
             <div className="py-8 flex flex-col items-center justify-center gap-2 text-amber-300">
               <RefreshCw size={20} className="animate-spin" />
               <span className="text-[11px] font-bold">Cargando Top 50...</span>
+            </div>
+          ) : error ? (
+            <div className="py-8 flex flex-col items-center justify-center text-center text-red-300 gap-2 px-2">
+              <p className="text-xs font-bold">{error}</p>
+              <button
+                onClick={loadLeaderboard}
+                className="wood-button px-3 py-1.5 rounded-lg text-[10px] font-bold text-amber-200"
+              >
+                Reintentar
+              </button>
             </div>
           ) : entries.length === 0 ? (
             <div className="py-8 flex flex-col items-center justify-center text-center text-amber-300/80 gap-1.5">

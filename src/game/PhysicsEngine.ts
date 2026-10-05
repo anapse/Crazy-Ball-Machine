@@ -31,12 +31,23 @@ export interface PhysicsEvent {
     | 'BOX_OPENED'
     | 'POWERUP_COLLECTED'
     | 'TARGET_HIT'
-    | 'COMBO_UP';
+    | 'COMBO_UP'
+    | 'BRICK_DESTROYED'
+    | 'BALLOON_POPPED'
+    | 'BUMPER_HIT'
+    | 'GEAR_HIT'
+    | 'WINDMILL_HIT'
+    | 'TRAMPOLINE_HIT'
+    | 'ARROW_HIT'
+    | 'OIL_HIT'
+    | 'PIPE_HIT'
+    | 'BOMB_EXPLODED';
   points: number;
   boxReward?: string;
   x?: number;
   y?: number;
   text?: string;
+  objectType?: string;
 }
 
 export class PhysicsEngine {
@@ -111,7 +122,7 @@ export class PhysicsEngine {
               break;
 
             case 'pipe':
-              this.handlePipeCollision(ball, obj as PipeChute);
+              this.handlePipeCollision(ball, obj as PipeChute, onEvent);
               break;
 
             case 'bumper':
@@ -119,7 +130,7 @@ export class PhysicsEngine {
               break;
 
             case 'windmill':
-              this.handleWindmillCollision(ball, obj as WindmillPropeller, subDt);
+              this.handleWindmillCollision(ball, obj as WindmillPropeller, subDt, onEvent);
               break;
 
             case 'arrow':
@@ -139,7 +150,7 @@ export class PhysicsEngine {
               break;
 
             case 'trampoline':
-              this.handleTrampolineCollision(ball, obj);
+              this.handleTrampolineCollision(ball, obj, onEvent);
               break;
 
             case 'fan':
@@ -147,7 +158,7 @@ export class PhysicsEngine {
               break;
 
             case 'oil':
-              this.handleOilCollision(ball, obj);
+              this.handleOilCollision(ball, obj, onEvent);
               break;
 
             case 'bomb':
@@ -159,7 +170,7 @@ export class PhysicsEngine {
               break;
 
             case 'gear':
-              this.handleGearCollision(ball, obj, subDt);
+              this.handleGearCollision(ball, obj, subDt, onEvent);
               break;
 
             case 'magnet':
@@ -545,7 +556,7 @@ export class PhysicsEngine {
 
         this.addFloatingText(`+${pts}`, block.x, block.y, colorStyle.light);
         onEvent({
-          type: 'OBJECT_DESTROYED',
+          type: 'BRICK_DESTROYED',
           points: pts,
           x: block.x,
           y: block.y,
@@ -555,7 +566,7 @@ export class PhysicsEngine {
   }
 
   // --- Trampoline / Spring ---
-  private handleTrampolineCollision(ball: Ball, tramp: Trampoline) {
+  private handleTrampolineCollision(ball: Ball, tramp: Trampoline, onEvent?: (ev: PhysicsEvent) => void) {
     const halfW = tramp.width / 2;
     const halfH = tramp.height / 2;
     const dx = ball.x - tramp.x;
@@ -572,6 +583,9 @@ export class PhysicsEngine {
         tramp.animTimer = 0.25;
         soundManager.playTrampoline();
         this.createSparks(tramp.x, tramp.y, '#38bdf8', 10);
+        if (onEvent) {
+          onEvent({ type: 'TRAMPOLINE_HIT', points: 0, x: tramp.x, y: tramp.y });
+        }
       }
     }
   }
@@ -612,7 +626,7 @@ export class PhysicsEngine {
   }
 
   // --- Oil Slick ---
-  private handleOilCollision(ball: Ball, oil: OilSlick) {
+  private handleOilCollision(ball: Ball, oil: OilSlick, onEvent?: (ev: PhysicsEvent) => void) {
     const halfW = oil.width / 2;
     const halfH = oil.height / 2;
     const dx = ball.x - oil.x;
@@ -627,6 +641,9 @@ export class PhysicsEngine {
         soundManager.playOilBoost();
         this.addFloatingText('¡ACEITE! ⚡', oil.x, oil.y - 15, '#38bdf8');
         this.createSparks(ball.x, ball.y, '#0284c7', 6);
+        if (onEvent) {
+          onEvent({ type: 'OIL_HIT', points: 0, x: oil.x, y: oil.y });
+        }
       }
     }
   }
@@ -643,6 +660,7 @@ export class PhysicsEngine {
       bomb.destroyed = true;
       soundManager.playBombExplosion();
       this.triggerExplosion(bomb.x, bomb.y, onEvent, allObjects);
+      onEvent({ type: 'BOMB_EXPLODED', points: 0, x: bomb.x, y: bomb.y });
 
       if (ball.type !== 'shield' && !ball.isImmune) {
         ball.active = false;
@@ -673,7 +691,7 @@ export class PhysicsEngine {
       this.createSparks(balloon.x, balloon.y, balloon.color, 12);
       this.addFloatingText(`+${GAME_CONSTANTS.POINTS_BALLOON}`, balloon.x, balloon.y, balloon.color);
       onEvent({
-        type: 'OBJECT_DESTROYED',
+        type: 'BALLOON_POPPED',
         points: GAME_CONSTANTS.POINTS_BALLOON,
         x: balloon.x,
         y: balloon.y,
@@ -682,7 +700,7 @@ export class PhysicsEngine {
   }
 
   // --- Rotating Gear ---
-  private handleGearCollision(ball: Ball, gear: Gear, dt: number) {
+  private handleGearCollision(ball: Ball, gear: Gear, dt: number, onEvent?: (ev: PhysicsEvent) => void) {
     gear.angle = (gear.angle || 0) + gear.speed * dt;
     const dist = Math.hypot(ball.x - gear.x, ball.y - gear.y);
     if (dist < ball.radius + gear.radius) {
@@ -698,6 +716,9 @@ export class PhysicsEngine {
 
       soundManager.playMetalBounce();
       this.createSparks(ball.x, ball.y, '#f59e0b', 4);
+      if (onEvent && Math.random() < 0.3) {
+        onEvent({ type: 'GEAR_HIT', points: 0, x: gear.x, y: gear.y });
+      }
     }
   }
 
@@ -913,8 +934,8 @@ export class PhysicsEngine {
     return applied;
   }
 
-  private handlePipeCollision(ball: Ball, pipe: PipeChute) {
-    this.handleSegmentCollision(
+  private handlePipeCollision(ball: Ball, pipe: PipeChute, onEvent?: (ev: PhysicsEvent) => void) {
+    const hit = this.handleSegmentCollision(
       ball,
       pipe.x,
       pipe.y,
@@ -923,6 +944,9 @@ export class PhysicsEngine {
       pipe.radius * 2 || 24,
       pipe.boostSpeed || 60
     );
+    if (hit && onEvent) {
+      onEvent({ type: 'PIPE_HIT', points: 0, x: (pipe.x + pipe.x2) / 2, y: (pipe.y + pipe.y2) / 2 });
+    }
   }
 
   private handleBumperCollision(
@@ -950,7 +974,7 @@ export class PhysicsEngine {
       this.addFloatingText(`+${bumper.points || GAME_CONSTANTS.POINTS_BUMPER}`, bumper.x, bumper.y - 15, '#facc15');
 
       onEvent({
-        type: 'OBJECT_DESTROYED',
+        type: 'BUMPER_HIT',
         points: bumper.points || GAME_CONSTANTS.POINTS_BUMPER,
         x: bumper.x,
         y: bumper.y,
@@ -958,7 +982,12 @@ export class PhysicsEngine {
     }
   }
 
-  private handleWindmillCollision(ball: Ball, wm: WindmillPropeller, dt: number) {
+  private handleWindmillCollision(
+    ball: Ball,
+    wm: WindmillPropeller,
+    dt: number,
+    onEvent?: (ev: PhysicsEvent) => void
+  ) {
     wm.angle = (wm.angle || 0) + (wm.rotationSpeed || 1.2) * dt;
     const dist = Math.hypot(ball.x - wm.x, ball.y - wm.y);
     const reach = wm.armLength || 45;
@@ -974,6 +1003,9 @@ export class PhysicsEngine {
         if (hit) {
           soundManager.playWindmillClack();
           this.createSparks(ball.x, ball.y, '#f59e0b', 5);
+          if (onEvent) {
+            onEvent({ type: 'WINDMILL_HIT', points: 0, x: wm.x, y: wm.y });
+          }
           break;
         }
       }

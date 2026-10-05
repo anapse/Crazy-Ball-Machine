@@ -46,7 +46,7 @@ export const leaderboardService = {
       return list;
     } catch (err) {
       console.warn('Leaderboard fetch error from Firebase:', err);
-      return [];
+      throw err;
     }
   },
 

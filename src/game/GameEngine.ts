@@ -15,6 +15,7 @@ import { soundManager } from '../audio/soundManager';
 import { spriteManager } from './SpriteManager';
 import { storage } from '../utils/storage';
 import { leaderboardService } from '../utils/leaderboardService';
+import { analyticsService, AnalyticsSession } from '../utils/analyticsService';
 import confetti from 'canvas-confetti';
 
 export class GameEngine {
@@ -30,6 +31,10 @@ export class GameEngine {
   // Dynamic Viewport Dimensions
   public viewportWidth: number = GAME_CONSTANTS.VIEWPORT_WIDTH;
   public viewportHeight: number = GAME_CONSTANTS.VIEWPORT_HEIGHT_GAMEPLAY;
+
+  // Analytics Persistent Run Session
+  public currentSession: AnalyticsSession | null = null;
+  private gameStartTime: number = 0;
 
   // State
   private phase: GameStatePhase = 'MENU';
@@ -133,6 +138,16 @@ export class GameEngine {
     this.inventory = { double: 0, triple: 0, fast: 0, explosive: 0, shield: 0 };
     this.camera.reset();
     this.phase = 'AIMING';
+
+    // Real Analytics: Start / maintain persistent game session
+    if (levelNum === 1 || !this.currentSession) {
+      this.currentSession = analyticsService.createNewSession(this.playerName);
+      this.gameStartTime = Date.now();
+      analyticsService.saveSession(this.currentSession);
+    } else {
+      this.currentSession.levelReached = Math.max(this.currentSession.levelReached, levelNum);
+    }
+
     this.emitState();
     leaderboardService.recordGameStart();
   }
@@ -145,6 +160,17 @@ export class GameEngine {
     this.ballsLeft += this.levelConfig.startingBalls;
     this.camera.reset();
     this.phase = 'AIMING';
+
+    // Update Analytics session across level transitions
+    if (this.currentSession) {
+      this.currentSession.levelsCompleted = Math.max(this.currentSession.levelsCompleted, nextLvl - 1);
+      this.currentSession.levelReached = Math.max(this.currentSession.levelReached, nextLvl);
+      this.currentSession.score = this.score;
+      this.currentSession.playTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
+      this.currentSession.finishedAt = new Date().toISOString();
+      analyticsService.saveSession(this.currentSession);
+    }
+
     this.emitState();
   }
 
@@ -167,6 +193,13 @@ export class GameEngine {
   }
 
   public returnToMenu() {
+    if (this.currentSession && this.phase !== 'MENU' && this.phase !== 'GAME_OVER') {
+      this.currentSession.result = 'abandoned';
+      this.currentSession.score = this.score;
+      this.currentSession.playTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
+      this.currentSession.finishedAt = new Date().toISOString();
+      analyticsService.saveSession(this.currentSession);
+    }
     this.phase = 'MENU';
     this.balls = [];
     this.camera.reset();
@@ -208,12 +241,35 @@ export class GameEngine {
     this.totalBallsUsed++;
     soundManager.playRelease();
 
+    if (this.currentSession) {
+      this.currentSession.ballsUsed++;
+    }
+
     const ballType = this.activePowerUp || 'standard';
     if (this.activePowerUp) {
       const key = this.activePowerUp as keyof PowerUpInventory;
       if (this.inventory[key] > 0) {
         this.inventory[key]--;
       }
+
+      // Record real Power-up activation into analytics
+      if (this.currentSession) {
+        this.currentSession.specialBallsUsed++;
+        if (ballType === 'fast') {
+          this.currentSession.fastBallsUsed++;
+        } else if (ballType === 'double') {
+          this.currentSession.doubleBallsUsed++;
+          this.currentSession.multiBallsUsed++;
+        } else if (ballType === 'triple') {
+          this.currentSession.tripleBallsUsed++;
+          this.currentSession.multiBallsUsed++;
+        } else if (ballType === 'explosive') {
+          this.currentSession.bombBallsUsed++;
+        } else if (ballType === 'shield') {
+          this.currentSession.shieldBallsUsed++;
+        }
+      }
+
       this.activePowerUp = null;
     }
 
@@ -433,15 +489,58 @@ export class GameEngine {
   private handlePhysicsEvent(ev: PhysicsEvent) {
     if (ev.points > 0) {
       this.score += ev.points;
+      if (this.currentSession) {
+        this.currentSession.score = this.score;
+      }
     }
 
-    if (ev.type === 'OBJECT_DESTROYED' || ev.type === 'TARGET_HIT') {
+    if (
+      ev.type === 'OBJECT_DESTROYED' ||
+      ev.type === 'TARGET_HIT' ||
+      ev.type === 'BRICK_DESTROYED' ||
+      ev.type === 'BALLOON_POPPED'
+    ) {
       this.objectsDestroyedCount++;
+      if (this.currentSession) {
+        this.currentSession.objectsDestroyed++;
+      }
+    }
+
+    // Granular real-time analytics counter updates
+    if (this.currentSession) {
+      if (ev.type === 'BRICK_DESTROYED') {
+        this.currentSession.bricksDestroyed++;
+      } else if (ev.type === 'BALLOON_POPPED') {
+        this.currentSession.globesDestroyed++;
+      } else if (ev.type === 'TARGET_HIT') {
+        this.currentSession.targetsHit++;
+      } else if (ev.type === 'BUMPER_HIT') {
+        this.currentSession.bumpersHit++;
+      } else if (ev.type === 'GEAR_HIT') {
+        this.currentSession.gearsHit++;
+      } else if (ev.type === 'WINDMILL_HIT') {
+        this.currentSession.windmillsHit++;
+      } else if (ev.type === 'TRAMPOLINE_HIT') {
+        this.currentSession.trampolinesHit++;
+      } else if (ev.type === 'ARROW_HIT') {
+        this.currentSession.arrowsHit++;
+      } else if (ev.type === 'OIL_HIT') {
+        this.currentSession.oilHits++;
+      } else if (ev.type === 'PIPE_HIT') {
+        this.currentSession.pipesHit++;
+      } else if (ev.type === 'BOMB_EXPLODED') {
+        this.currentSession.bombsExploded++;
+      }
     }
 
     if (ev.type === 'BOX_OPENED') {
       this.objectsDestroyedCount++;
       this.levelConfig.goal.current++;
+
+      if (this.currentSession) {
+        this.currentSession.boxesCollected++;
+        this.currentSession.objectsDestroyed++;
+      }
 
       soundManager.playPowerUpCollect();
       if (ev.boxReward === 'ball_1') this.ballsLeft += 1;
@@ -477,6 +576,15 @@ export class GameEngine {
       storage.setHighScore(this.score);
       storage.saveRecentScore(this.score);
       leaderboardService.recordGameEnd();
+
+      if (this.currentSession) {
+        this.currentSession.result = 'game_over';
+        this.currentSession.score = this.score;
+        this.currentSession.levelReached = Math.max(this.currentSession.levelReached, this.levelConfig.levelNumber);
+        this.currentSession.playTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
+        this.currentSession.finishedAt = new Date().toISOString();
+        analyticsService.saveSession(this.currentSession);
+      }
     }
     this.emitState();
   }
@@ -487,6 +595,17 @@ export class GameEngine {
     storage.setHighScore(this.score);
     storage.saveRecentScore(this.score);
     leaderboardService.recordGameEnd();
+
+    if (this.currentSession) {
+      this.currentSession.levelsCompleted = Math.max(this.currentSession.levelsCompleted, this.levelConfig.levelNumber);
+      this.currentSession.score = this.score;
+      this.currentSession.playTime = Math.floor((Date.now() - this.gameStartTime) / 1000);
+      this.currentSession.finishedAt = new Date().toISOString();
+      if (this.levelConfig.levelNumber >= 10) {
+        this.currentSession.result = 'completed';
+      }
+      analyticsService.saveSession(this.currentSession);
+    }
 
     confetti({
       particleCount: 80,

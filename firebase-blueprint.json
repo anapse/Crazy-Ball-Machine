@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "RankingEntry": {
+      "title": "RankingEntry",
+      "description": "Leaderboard score record in Crazy Ball Machine",
+      "type": "object",
+      "properties": {
+        "playerName": {
+          "type": "string",
+          "description": "Player name chosen by user",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "score": {
+          "type": "number",
+          "description": "Total final score achieved"
+        },
+        "level": {
+          "type": "number",
+          "description": "Highest level reached"
+        },
+        "ballsUsed": {
+          "type": "number",
+          "description": "Total balls dropped"
+        },
+        "objectsDestroyed": {
+          "type": "number",
+          "description": "Total blocks/targets destroyed"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the score was submitted"
+        }
+      },
+      "required": ["playerName", "score"]
+    },
+    "AnalyticsSession": {
+      "title": "AnalyticsSession",
+      "description": "Game analytics session tracking real gameplay metrics and object interactions",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "playerName": { "type": "string" },
+        "score": { "type": "number" },
+        "levelReached": { "type": "number" },
+        "levelsCompleted": { "type": "number" },
+        "ballsUsed": { "type": "number" },
+        "objectsDestroyed": { "type": "number" },
+        "boxesCollected": { "type": "number" },
+        "playTime": { "type": "number" },
+        "startedAt": { "type": "string" },
+        "finishedAt": { "type": "string" },
+        "result": { "type": "string", "enum": ["completed", "game_over", "abandoned"] },
+        "bricksDestroyed": { "type": "number" },
+        "globesDestroyed": { "type": "number" },
+        "targetsHit": { "type": "number" },
+        "bumpersHit": { "type": "number" },
+        "gearsHit": { "type": "number" },
+        "windmillsHit": { "type": "number" },
+        "trampolinesHit": { "type": "number" },
+        "arrowsHit": { "type": "number" },
+        "oilHits": { "type": "number" },
+        "pipesHit": { "type": "number" },
+        "bombsExploded": { "type": "number" },
+        "fastBallsUsed": { "type": "number" },
+        "multiBallsUsed": { "type": "number" },
+        "bombBallsUsed": { "type": "number" },
+        "specialBallsUsed": { "type": "number" },
+        "doubleBallsUsed": { "type": "number" },
+        "tripleBallsUsed": { "type": "number" },
+        "shieldBallsUsed": { "type": "number" }
+      },
+      "required": ["sessionId", "playerName", "score"]
+    }
+  },
+  "firestore": {
+    "/ranking/{rankingId}": {
+      "schema": "RankingEntry",
+      "description": "Top 50 highscores collection"
+    },
+    "/analytics/{sessionId}": {
+      "schema": "AnalyticsSession",
+      "description": "Live game analytics sessions collection"
+    }
+  }
+}
