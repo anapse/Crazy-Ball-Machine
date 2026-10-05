@@ -17,6 +17,7 @@ class SpriteManager {
     trabesanos: 'assets/sprites/trabesanos.png',
     pelota: 'assets/sprites/pelota.png',
     bolas: 'assets/sprites/bolas.png',
+    tuberias_dianas_bombas: 'assets/sprites/tuberias_dianas_bombas.png',
   };
 
   public loadAll(): Promise<void> {
@@ -54,7 +55,6 @@ class SpriteManager {
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, 0, 0, w, h);
     } else {
-      // Fallback
       ctx.fillStyle = '#281508';
       ctx.fillRect(0, 0, w, h);
     }
@@ -79,9 +79,6 @@ class SpriteManager {
   ) {
     const img = this.images['ladrillos'];
     if (img && img.complete && img.naturalWidth > 0) {
-      // Mapping:
-      // Row 0: rojo (0,0), azul (1,0), verde (2,0), amarillo (3,0)
-      // Row 1: morado (0,1), rosa (1,1), naranja (2,1), gris (3,1)
       let col = 0;
       let row = 0;
       switch (color) {
@@ -284,7 +281,7 @@ class SpriteManager {
     return false;
   }
 
-  // 10. Trabesaños / Wooden Plank (trabesaños.png: 1 row x 3 items)
+  // 10. Trabesaños / Wooden Plank (trabesanos.png: 1 row x 3 items)
   public drawPlank(
     ctx: CanvasRenderingContext2D,
     x1: number,
@@ -323,6 +320,74 @@ class SpriteManager {
     const img = this.images['pelota'];
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+      return true;
+    }
+    return false;
+  }
+
+  // 12. Pipe / Tubería (tuberias_dianas_bombas.png: Row 0, Col 0)
+  public drawPipe(
+    ctx: CanvasRenderingContext2D,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    radius: number
+  ) {
+    const img = this.images['tuberias_dianas_bombas'];
+    if (img && img.complete && img.naturalWidth > 0) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+
+      const sw = img.naturalWidth / 6;
+      const sh = img.naturalHeight / 2;
+
+      ctx.save();
+      ctx.translate(x1, y1);
+      ctx.rotate(angle);
+      // Row 0, Col 0: Straight Pipe
+      ctx.drawImage(img, 0, 0, sw, sh, 0, -radius, len, radius * 2);
+      ctx.restore();
+      return true;
+    }
+    return false;
+  }
+
+  // 13. Target / Diana (tuberias_dianas_bombas.png: Row 1, Col 0 Red / Col 2 Yellow)
+  public drawTarget(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    r: number,
+    isSpecial: boolean
+  ) {
+    const img = this.images['tuberias_dianas_bombas'];
+    if (img && img.complete && img.naturalWidth > 0) {
+      const col = isSpecial ? 2 : 0; // Col 2 = Yellow, Col 0 = Red
+      const sw = img.naturalWidth / 6;
+      const sh = img.naturalHeight / 2;
+
+      ctx.drawImage(img, col * sw, sh, sw, sh, x - r, y - r, r * 2, r * 2);
+      return true;
+    }
+    return false;
+  }
+
+  // 14. Bomb / Bomba (tuberias_dianas_bombas.png: Row 1, Col 4)
+  public drawBomb(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    r: number
+  ) {
+    const img = this.images['tuberias_dianas_bombas'];
+    if (img && img.complete && img.naturalWidth > 0) {
+      const sw = img.naturalWidth / 6;
+      const sh = img.naturalHeight / 2;
+
+      ctx.drawImage(img, 4 * sw, sh, sw, sh, x - r, y - r, r * 2, r * 2);
       return true;
     }
     return false;

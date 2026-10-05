@@ -921,37 +921,40 @@ export class GameEngine {
         const y2 = (obj as any).y2 ?? obj.y + 60;
         const rad = (obj as any).radius || 12;
 
-        // Outer copper pipe
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = rad * 2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(obj.x, obj.y);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+        const drawn = spriteManager.drawPipe(ctx, obj.x, obj.y, x2, y2, rad);
+        if (!drawn) {
+          // Outer copper pipe
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = rad * 2;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(obj.x, obj.y);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
 
-        // Metallic inner shine
-        ctx.strokeStyle = '#64748b';
-        ctx.lineWidth = rad * 1.1;
-        ctx.beginPath();
-        ctx.moveTo(obj.x, obj.y);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+          // Metallic inner shine
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = rad * 1.1;
+          ctx.beginPath();
+          ctx.moveTo(obj.x, obj.y);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
 
-        // Brass entry flange ring
-        ctx.fillStyle = '#f59e0b';
-        ctx.strokeStyle = '#78350f';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, rad + 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+          // Brass entry flange ring
+          ctx.fillStyle = '#f59e0b';
+          ctx.strokeStyle = '#78350f';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(obj.x, obj.y, rad + 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
 
-        // Brass exit flange ring
-        ctx.beginPath();
-        ctx.arc(x2, y2, rad + 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+          // Brass exit flange ring
+          ctx.beginPath();
+          ctx.arc(x2, y2, rad + 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
         break;
       }
 
@@ -1206,52 +1209,58 @@ export class GameEngine {
       }
 
       case 'bomb': {
-        ctx.save();
-        ctx.translate(obj.x, obj.y);
+        const drawn = spriteManager.drawBomb(ctx, obj.x, obj.y, obj.radius);
+        if (!drawn) {
+          ctx.save();
+          ctx.translate(obj.x, obj.y);
 
-        // Bomb body
-        ctx.fillStyle = '#0f172a';
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+          // Bomb body
+          ctx.fillStyle = '#0f172a';
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
 
-        // Skull / cross icon
-        ctx.fillStyle = '#f87171';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('💣', 0, 0);
-        ctx.restore();
+          // Skull / cross icon
+          ctx.fillStyle = '#f87171';
+          ctx.font = 'bold 14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('💣', 0, 0);
+          ctx.restore();
+        }
         break;
       }
 
       case 'target': {
-        ctx.save();
-        ctx.translate(obj.x, obj.y);
+        const drawn = spriteManager.drawTarget(ctx, obj.x, obj.y, obj.radius, !!obj.isSpecial);
+        if (!drawn) {
+          ctx.save();
+          ctx.translate(obj.x, obj.y);
 
-        // Carnival Can / Bullseye Target
-        ctx.fillStyle = obj.isSpecial ? '#eab308' : '#dc2626';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
+          // Carnival Can / Bullseye Target
+          ctx.fillStyle = obj.isSpecial ? '#eab308' : '#dc2626';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
 
-        ctx.beginPath();
-        ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(0, 0, obj.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
 
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(0, 0, obj.radius * 0.5, 0, Math.PI * 2);
-        ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(0, 0, obj.radius * 0.5, 0, Math.PI * 2);
+          ctx.fill();
 
-        ctx.fillStyle = obj.isSpecial ? '#eab308' : '#dc2626';
-        ctx.beginPath();
-        ctx.arc(0, 0, obj.radius * 0.25, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+          ctx.fillStyle = obj.isSpecial ? '#eab308' : '#dc2626';
+          ctx.beginPath();
+          ctx.arc(0, 0, obj.radius * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
         break;
       }
 
