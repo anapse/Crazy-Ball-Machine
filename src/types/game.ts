@@ -14,6 +14,7 @@ export interface Ball {
   isImmune?: boolean;
   hasExploded?: boolean;
   boostedByOil?: boolean;
+  boostedByArrow?: boolean;
 }
 
 export type PhysicalObjectType =

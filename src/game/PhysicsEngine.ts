@@ -926,11 +926,11 @@ export class PhysicsEngine {
       ball.vx += arrow.forceX * dt;
       ball.vy += arrow.forceY * dt;
 
-      if (!ball.boostedByOil) {
+      if (!ball.boostedByArrow) {
         soundManager.playArrowBoost();
         this.addFloatingText('⚡ FLECHA IMPULSO', arrow.x, arrow.y - 15, '#f59e0b');
         this.createSparks(ball.x, ball.y, '#f59e0b', 6);
-        ball.boostedByOil = true;
+        ball.boostedByArrow = true;
         onEvent({ type: 'OBJECT_DESTROYED', points: GAME_CONSTANTS.POINTS_ARROW, x: arrow.x, y: arrow.y });
       }
     }

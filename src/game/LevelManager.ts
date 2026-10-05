@@ -48,17 +48,16 @@ export class LevelManager {
 
   public static createBottomBoxes(rewards: BoxReward[]): MachineObject[] {
     const boxWidth = 52;
-    const startY = GAME_CONSTANTS.BOTTOM_BOX_Y;
-
-    // Open, accessible tier formation: 3 top, 2 middle, 2 bottom
+    // Place them neatly together in a horizontal row at Y = 2500 (high above loss hole Y = 2720)
+    const startY = 2500;
     const positions = [
-      { x: 95, y: startY },
+      { x: 50, y: startY },
+      { x: 108, y: startY },
+      { x: 166, y: startY },
       { x: 225, y: startY },
-      { x: 355, y: startY },
-      { x: 160, y: startY + 65 },
-      { x: 290, y: startY + 65 },
-      { x: 105, y: startY + 130 },
-      { x: 345, y: startY + 130 },
+      { x: 284, y: startY },
+      { x: 342, y: startY },
+      { x: 400, y: startY },
     ];
 
     return positions.map((pos, i) => ({
@@ -82,12 +81,135 @@ export class LevelManager {
     let config: LevelConfig | null = null;
 
     // Retry loop until bottleneck validation succeeds
-    while (!config && attempts < 20) {
+    while (!config && attempts < 100) {
       config = this.generateLevelAttempt(levelNumber, seed + attempts);
       attempts++;
     }
 
-    return config!;
+    // Backup return to guarantee game never crashes
+    if (!config) {
+      return this.generateBackupLevel(levelNumber);
+    }
+
+    return config;
+  }
+
+  // Real Pathfinding Grid-Based Connectivity Validation (Flood Fill BFS)
+  private static isPlayable(objects: MachineObject[], width: number, height: number): boolean {
+    const cellSize = 15;
+    const cols = Math.ceil(width / cellSize);
+    const rows = Math.ceil(height / cellSize);
+
+    // Create 2D grid initialized to false (open)
+    const grid = Array.from({ length: cols }, () => new Array(rows).fill(false));
+
+    // Mark permanent physical blockers on the grid
+    for (const obj of objects) {
+      if (obj.destroyed) continue;
+
+      // Breakable blocks, balloons, targets, oil, and boxes are either collectible, slippery, or breakable, so they don't block path permanently
+      if (obj.type === 'ramp' || obj.type === 'moving_bar' || obj.type === 'lever') {
+        const x1 = obj.x;
+        const y1 = obj.y;
+        const x2 = (obj as any).x2 ?? (obj.x + 80);
+        const y2 = (obj as any).y2 ?? obj.y;
+        const thickness = (obj as any).thickness || 12;
+
+        // Trace line segments on our coarse validation grid
+        const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 6);
+        for (let i = 0; i <= steps; i++) {
+          const t = steps > 0 ? i / steps : 0;
+          const lx = x1 + t * (x2 - x1);
+          const ly = y1 + t * (y2 - y1);
+
+          const rad = (thickness / 2 + 10) / cellSize;
+          const gcx = Math.floor(lx / cellSize);
+          const gcy = Math.floor(ly / cellSize);
+
+          for (let dx = -Math.ceil(rad); dx <= rad; dx++) {
+            for (let dy = -Math.ceil(rad); dy <= rad; dy++) {
+              const nx = gcx + dx;
+              const ny = gcy + dy;
+              if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+                grid[nx][ny] = true;
+              }
+            }
+          }
+        }
+      } else if (
+        obj.type === 'bumper' ||
+        obj.type === 'gear' ||
+        obj.type === 'windmill' ||
+        obj.type === 'bomb'
+      ) {
+        const rad = (obj as any).radius || (obj as any).armLength || 20;
+        const gcx = Math.floor(obj.x / cellSize);
+        const gcy = Math.floor(obj.y / cellSize);
+        const gridR = Math.ceil((rad + 10) / cellSize);
+
+        for (let dx = -gridR; dx <= gridR; dx++) {
+          for (let dy = -gridR; dy <= gridR; dy++) {
+            const nx = gcx + dx;
+            const ny = gcy + dy;
+            if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+              if (Math.hypot(dx, dy) * cellSize <= rad + 10) {
+                grid[nx][ny] = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Run Flood Fill / BFS starting from the top launchers to check if we can reach boxes Y = 2500
+    const visited = Array.from({ length: cols }, () => new Array(rows).fill(false));
+    const queue: [number, number][] = [];
+
+    // Push 5 top launcher channel positions onto BFS queue
+    const startY = Math.floor(200 / cellSize);
+    const startXs = [50, 137, 225, 312, 400].map(x => Math.floor(x / cellSize));
+
+    for (const sx of startXs) {
+      if (sx >= 0 && sx < cols && startY >= 0 && startY < rows && !grid[sx][startY]) {
+        queue.push([sx, startY]);
+        visited[sx][startY] = true;
+      }
+    }
+
+    let reachedBottom = false;
+    const targetY = Math.floor(2480 / cellSize);
+
+    while (queue.length > 0) {
+      const [cx, cy] = queue.shift()!;
+
+      if (cy >= targetY) {
+        reachedBottom = true;
+        break;
+      }
+
+      // Ball can roll down, left, right or slide diagonally
+      const dirs = [
+        [0, 1],   // Down
+        [-1, 1],  // Down-Left
+        [1, 1],   // Down-Right
+        [-1, 0],  // Left
+        [1, 0]    // Right
+      ];
+
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+
+        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
+          if (!grid[nx][ny] && !visited[nx][ny]) {
+            visited[nx][ny] = true;
+            queue.push([nx, ny]);
+          }
+        }
+      }
+    }
+
+    return reachedBottom;
   }
 
   private static generateLevelAttempt(levelNumber: number, seed: number): LevelConfig | null {
@@ -112,7 +234,7 @@ export class LevelManager {
 
     // --- 1. GENERATE 60+ BREAKABLE BLOCKS IN CONTIGUOUS CLUSTERS (3, 4, 5 blocks per cluster) ---
     yBands.forEach((band) => {
-      const clusterCount = rng.rangeInt(2, 3);
+      const clusterCount = rng.rangeInt(3, 4); // Boost clusters to guarantee >= 60 blocks esparcidos
       for (let c = 0; c < clusterCount; c++) {
         const clusterSize = rng.rangeInt(3, 5); // 3, 4, 5 blocks per cluster
         const color = rng.choice(availableColors);
@@ -145,10 +267,10 @@ export class LevelManager {
 
       const y = rng.range(band.min + 30, band.max - 30);
       const isLeft = rng.next() > 0.5;
-      const angle = (isLeft ? 0.3 : -0.3) + rng.range(-0.1, 0.1);
+      const angle = (isLeft ? 0.3 : -0.3) + rng.range(-0.05, 0.05);
 
       // Single plank per tier or offset planks to prevent funnels
-      const x1 = isLeft ? 60 : width - 180;
+      const x1 = isLeft ? 50 : width - 170;
       const x2 = x1 + Math.cos(angle) * 110;
       const y2 = y + Math.sin(angle) * 110;
 
@@ -169,7 +291,7 @@ export class LevelManager {
       const band = rng.choice(yBands);
       const x = rng.range(80, width - 80);
       const y = rng.range(band.min + 40, band.max - 40);
-      const angle = rng.choice([0, 0.25, -0.25]);
+      const angle = rng.choice([0, 0.2, -0.2]);
 
       objects.push({
         id: `tramp_${i + 1}`,
@@ -359,7 +481,85 @@ export class LevelManager {
       } as any);
     }
 
-    // --- 12. BOTTOM TIER: 7 PRIZE BOXES (cajas.png) ---
+    // --- 12. RESTORING EXOTIC MECÁNICAS (Fase 5 RESTORE: fan, lever, moving_bar, magnet) ---
+    // Moving bars
+    for (let i = 0; i < 2; i++) {
+      const band = yBands[i + 1];
+      const x = rng.range(120, width - 120);
+      const y = rng.range(band.min + 15, band.max - 15);
+      objects.push({
+        id: `mbar_${i + 1}`,
+        type: 'moving_bar',
+        x,
+        y,
+        length: 80,
+        thickness: 12,
+        pivotType: 'center',
+        motionType: 'patrol_h',
+        baseX: x,
+        baseY: y,
+        moveRange: 55,
+        moveSpeed: 1.1,
+      } as any);
+    }
+
+    // Levers
+    for (let i = 0; i < 2; i++) {
+      const band = yBands[i + 3];
+      const x = rng.range(80, width - 150);
+      const y = rng.range(band.min + 20, band.max - 20);
+      objects.push({
+        id: `lever_${i + 1}`,
+        type: 'lever',
+        x,
+        y,
+        length: 75,
+        thickness: 12,
+        pivotType: 'left',
+        motionType: 'lever',
+        baseAngle: 0.3,
+        maxAngle: -0.3,
+        triggeredAngle: -0.3,
+        isTriggered: false,
+      } as any);
+    }
+
+    // Fans (pointing horizontally to push the ball)
+    for (let i = 0; i < 2; i++) {
+      const band = yBands[i + 2];
+      const isLeft = i % 2 === 0;
+      const x = isLeft ? 50 : width - 50;
+      const y = rng.range(band.min + 30, band.max - 30);
+      objects.push({
+        id: `fan_${i + 1}`,
+        type: 'fan',
+        x,
+        y,
+        width: 44,
+        height: 44,
+        forceX: isLeft ? 380 : -380,
+        forceY: 0,
+        range: 180,
+        bladeAngle: 0,
+      } as any);
+    }
+
+    // Magnets
+    for (let i = 0; i < 2; i++) {
+      const band = yBands[i + 1];
+      const x = rng.range(100, width - 100);
+      const y = rng.range(band.min + 10, band.max - 10);
+      objects.push({
+        id: `magnet_${i + 1}`,
+        type: 'magnet',
+        x,
+        y,
+        radius: 35,
+        strength: 5.5,
+      } as any);
+    }
+
+    // --- 13. BOTTOM TIER: 7 PRIZE BOXES (cajas.png) ---
     const bottomBoxes = this.createBottomBoxes([
       'ball_1',
       'power_explosive',
@@ -372,48 +572,65 @@ export class LevelManager {
 
     // Bottom chamber safety pinball bumpers
     const bottomBumpers: MachineObject[] = [
-      { id: 'bmp_bot_left', type: 'bumper', x: 45, y: 2460, radius: 20, bounceForce: 650, points: 30 },
-      { id: 'bmp_bot_right', type: 'bumper', x: 405, y: 2460, radius: 20, bounceForce: 650, points: 30 },
-      { id: 'bmp_bot_center', type: 'bumper', x: 225, y: 2430, radius: 20, bounceForce: 640, points: 30 },
+      { id: 'bmp_bot_left', type: 'bumper', x: 45, y: 2380, radius: 20, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_right', type: 'bumper', x: 405, y: 2380, radius: 20, bounceForce: 650, points: 30 },
+      { id: 'bmp_bot_center', type: 'bumper', x: 225, y: 2360, radius: 20, bounceForce: 640, points: 30 },
     ];
 
     const allObjects = [...objects, ...bottomBumpers, ...bottomBoxes];
 
-    // --- 13. BOTTLENECK & PASSAGEWAY VALIDATION ENGINE ---
-    // Validate that every 100px Y band from Y = 250 to Y = 2450 has a clear passageway > 50px
-    let validPassage = true;
-    for (let checkY = 250; checkY <= 2400; checkY += 80) {
-      // Find objects overlapping this Y band
-      const blockers = allObjects.filter((o) => {
-        if (o.type === 'box' || o.type === 'balloon' || o.type === 'oil') return false;
-        return Math.abs(o.y - checkY) < 30;
-      });
+    // --- 14. REAL PATHFINDING CONNECTIVITY VALIDATION ---
+    const valid = this.isPlayable(allObjects, width, height);
+    if (!valid) return null; // Reject layout & let retry handle next seed
 
-      // Sort blockers horizontally
-      blockers.sort((a, b) => a.x - b.x);
+    return {
+      levelNumber,
+      title: `Máquina Pinball: Nivel ${levelNumber}`,
+      worldWidth: width,
+      worldHeight: height,
+      startingBalls: 8 + Math.floor(levelNumber / 2),
+      goal: {
+        type: 'destroy_count',
+        target: 7,
+        current: 0,
+        description: 'Destruye las 7 cajas de la máquina',
+      },
+      channels: this.getChannels(),
+      objects: allObjects,
+    };
+  }
 
-      // Check max horizontal gap between consecutive blockers
-      let maxGap = 0;
-      let prevRight = 15; // Left wall boundary
-      for (const b of blockers) {
-        const objW = (b as any).width || ((b as any).radius ? (b as any).radius * 2 : 40);
-        const left = b.x - objW / 2;
-        const gap = left - prevRight;
-        if (gap > maxGap) maxGap = gap;
-        const right = b.x + objW / 2;
-        if (right > prevRight) prevRight = right;
-      }
-      const finalGap = (width - 15) - prevRight;
-      if (finalGap > maxGap) maxGap = finalGap;
+  // Guaranteed fallback backup level configuration
+  private static generateBackupLevel(levelNumber: number): LevelConfig {
+    const width = GAME_CONSTANTS.WORLD_WIDTH;
+    const height = GAME_CONSTANTS.WORLD_HEIGHT;
+    const objects: MachineObject[] = [];
 
-      // If max gap is too narrow (< 48px), ball cannot descend -> invalidate layout!
-      if (maxGap < 48) {
-        validPassage = false;
-        break;
+    // Simple 60 brick blocks grid to guarantee >= 60 bricks always
+    let bCount = 0;
+    for (let row = 0; row < 12; row++) {
+      const y = 300 + row * 160;
+      for (let col = 0; col < 5; col++) {
+        const x = 50 + col * 80;
+        objects.push({
+          id: `blk_back_${++bCount}`,
+          type: 'breakable_block',
+          x,
+          y,
+          width: 40,
+          height: 24,
+          health: 1,
+          maxHealth: 1,
+          blockColor: 'azul',
+        });
       }
     }
 
-    if (!validPassage) return null; // Reject layout & trigger retry with next seed
+    const bottomBoxes = this.createBottomBoxes([
+      'ball_1', 'power_explosive', 'points_500', 'power_double', 'ball_2', 'power_fast', 'ball_1'
+    ]);
+
+    const allObjects = [...objects, ...bottomBoxes];
 
     return {
       levelNumber,

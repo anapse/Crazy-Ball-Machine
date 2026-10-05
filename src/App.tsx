@@ -10,7 +10,7 @@ import { HowToPlayModal } from './components/modals/HowToPlayModal';
 import { LeaderboardModal } from './components/modals/LeaderboardModal';
 import { GameOverModal } from './components/modals/GameOverModal';
 import { AdminPortal } from './components/admin/AdminPortal';
-import { spriteStorage } from './game/SpriteStorage';
+import { spriteManager } from './game/SpriteManager';
 import { soundManager } from './audio/soundManager';
 import { storage } from './utils/storage';
 import { leaderboardService } from './utils/leaderboardService';
@@ -68,7 +68,7 @@ export const App: React.FC = () => {
 
   // Preload sprites and record visitor session
   useEffect(() => {
-    spriteStorage.preloadSprites();
+    spriteManager.loadAll();
     leaderboardService.recordVisit();
 
     const handlePopState = () => {
