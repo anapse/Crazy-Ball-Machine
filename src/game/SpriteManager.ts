@@ -2,49 +2,81 @@
 
 class SpriteManager {
   private images: Record<string, HTMLImageElement> = {};
-  private loaded: boolean = false;
+  private loadedKeys: Set<string> = new Set();
 
-  private assetPaths: Record<string, string> = {
-    fondo: 'assets/sprites/fondo.png',
-    logo: 'assets/sprites/logo.png',
-    ladrillos: 'assets/sprites/ladrillos.png',
-    cajas: 'assets/sprites/cajas.png',
-    globos: 'assets/sprites/globos.png',
-    flechas: 'assets/sprites/flechas.png',
-    aceite: 'assets/sprites/aceite.png',
-    aspa_engranaje: 'assets/sprites/aspa_engranaje.png',
-    trampolin: 'assets/sprites/trampolin.png',
-    trabesanos: 'assets/sprites/trabesanos.png',
-    pelota: 'assets/sprites/pelota.png',
-    bolas: 'assets/sprites/bolas.png',
-    tuberias_dianas_bombas: 'assets/sprites/tuberias_dianas_bombas.png',
+  private assetFiles: Record<string, string> = {
+    fondo: 'fondo.png',
+    logo: 'logo.png',
+    ladrillos: 'ladrillos.png',
+    cajas: 'cajas.png',
+    globos: 'globos.png',
+    flechas: 'flechas.png',
+    aceite: 'aceite.png',
+    aspa_engranaje: 'aspa_engranaje.png',
+    trampolin: 'trampolin.png',
+    trabesanos: 'trabesanos.png',
+    pelota: 'pelota.png',
+    bolas: 'bolas.png',
+    tuberias_dianas_bombas: 'tuberias_dianas_bombas.png',
   };
 
-  public loadAll(): Promise<void> {
-    if (this.loaded) return Promise.resolve();
+  constructor() {
+    this.loadAll();
+  }
 
-    const promises = Object.entries(this.assetPaths).map(([key, path]) => {
-      return new Promise<void>((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          this.images[key] = img;
-          resolve();
-        };
-        img.onerror = () => {
-          console.warn(`[SpriteManager] Could not load ${path}, will fallback to canvas rendering.`);
-          resolve();
-        };
-        img.src = path;
-      });
+  public loadAll(): Promise<void> {
+    const promises = Object.entries(this.assetFiles).map(([key, filename]) => {
+      return this.loadImageWithFallbacks(key, filename);
     });
 
-    return Promise.all(promises).then(() => {
-      this.loaded = true;
+    return Promise.all(promises).then(() => {});
+  }
+
+  private loadImageWithFallbacks(key: string, filename: string): Promise<void> {
+    // Try multiple candidate paths in case base path differs between Vite dev, preview, and GitHub Pages
+    const candidates = [
+      `assets/sprites/${filename}`,
+      `./assets/sprites/${filename}`,
+      `/assets/sprites/${filename}`,
+    ];
+
+    return new Promise<void>((resolve) => {
+      let candidateIdx = 0;
+
+      const tryNextCandidate = () => {
+        if (candidateIdx >= candidates.length) {
+          console.warn(`[SpriteManager] Failed to load sprite '${key}' (${filename}) across all candidate paths.`);
+          resolve();
+          return;
+        }
+
+        const url = candidates[candidateIdx++];
+        const img = new Image();
+
+        img.onload = () => {
+          this.images[key] = img;
+          this.loadedKeys.add(key);
+          resolve();
+        };
+
+        img.onerror = () => {
+          tryNextCandidate();
+        };
+
+        img.src = url;
+      };
+
+      tryNextCandidate();
     });
   }
 
   public getImage(key: string): HTMLImageElement | null {
     return this.images[key] || null;
+  }
+
+  public isLoaded(key: string): boolean {
+    const img = this.images[key];
+    return !!(img && img.complete && img.naturalWidth > 0);
   }
 
   // --- RENDERING HELPERS ---
@@ -53,11 +85,13 @@ class SpriteManager {
   public drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const img = this.images['fondo'];
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, 0, 0, w, h);
-    } else {
-      ctx.fillStyle = '#281508';
-      ctx.fillRect(0, 0, w, h);
+      const tileH = (w / img.naturalWidth) * img.naturalHeight;
+      for (let y = 0; y < h; y += tileH) {
+        ctx.drawImage(img, 0, y, w, tileH);
+      }
+      return true;
     }
+    return false;
   }
 
   // 2. Logo Title (logo.png)
@@ -65,7 +99,9 @@ class SpriteManager {
     const img = this.images['logo'];
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+      return true;
     }
+    return false;
   }
 
   // 3. Breakable Block (ladrillos.png: 2 rows x 4 cols grid)
@@ -76,7 +112,7 @@ class SpriteManager {
     y: number,
     w: number,
     h: number
-  ) {
+  ): boolean {
     const img = this.images['ladrillos'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -89,6 +125,7 @@ class SpriteManager {
         case 'morado': col = 0; row = 1; break;
         case 'rosa': col = 1; row = 1; break;
         case 'naranja': col = 2; row = 1; break;
+        case 'gris': col = 3; row = 1; break;
         default: col = 0; row = 0; break;
       }
 
@@ -110,7 +147,7 @@ class SpriteManager {
     y: number,
     w: number,
     h: number
-  ) {
+  ): boolean {
     const img = this.images['cajas'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -153,7 +190,7 @@ class SpriteManager {
     x: number,
     y: number,
     r: number
-  ) {
+  ): boolean {
     const img = this.images['globos'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -186,7 +223,7 @@ class SpriteManager {
     y: number,
     w: number,
     h: number
-  ) {
+  ): boolean {
     const img = this.images['flechas'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -216,7 +253,7 @@ class SpriteManager {
     y: number,
     w: number,
     h: number
-  ) {
+  ): boolean {
     const img = this.images['aceite'];
     if (img && img.complete && img.naturalWidth > 0) {
       const sw = img.naturalWidth / 3;
@@ -235,7 +272,7 @@ class SpriteManager {
     x: number,
     y: number,
     r: number
-  ) {
+  ): boolean {
     const img = this.images['aspa_engranaje'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -264,7 +301,7 @@ class SpriteManager {
     y: number,
     w: number,
     h: number
-  ) {
+  ): boolean {
     const img = this.images['trampolin'];
     if (img && img.complete && img.naturalWidth > 0) {
       let col = 0;
@@ -289,7 +326,7 @@ class SpriteManager {
     x2: number,
     y2: number,
     thickness: number
-  ) {
+  ): boolean {
     const img = this.images['trabesanos'];
     if (img && img.complete && img.naturalWidth > 0) {
       const dx = x2 - x1;
@@ -310,18 +347,41 @@ class SpriteManager {
     return false;
   }
 
-  // 11. Pelota / Metallic Ball (pelota.png)
+  // 11. Pelota / Metallic Ball (bolas.png 4x4 grid or pelota.png)
   public drawBall(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    r: number
-  ) {
-    const img = this.images['pelota'];
-    if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+    r: number,
+    ballType: string = 'standard'
+  ): boolean {
+    const bolasImg = this.images['bolas'];
+    if (bolasImg && bolasImg.complete && bolasImg.naturalWidth > 0) {
+      let col = 0;
+      let row = 0;
+      switch (ballType) {
+        case 'standard':  col = 0; row = 0; break;
+        case 'fast':      col = 1; row = 0; break;
+        case 'explosive': col = 2; row = 0; break;
+        case 'shield':    col = 3; row = 0; break;
+        case 'double':    col = 3; row = 3; break;
+        case 'triple':    col = 3; row = 1; break;
+        default:          col = 0; row = 0; break;
+      }
+
+      const sw = bolasImg.naturalWidth / 4;
+      const sh = bolasImg.naturalHeight / 4;
+
+      ctx.drawImage(bolasImg, col * sw, row * sh, sw, sh, x - r, y - r, r * 2, r * 2);
       return true;
     }
+
+    const pelotaImg = this.images['pelota'];
+    if (pelotaImg && pelotaImg.complete && pelotaImg.naturalWidth > 0) {
+      ctx.drawImage(pelotaImg, 0, 0, pelotaImg.naturalWidth, pelotaImg.naturalHeight, x - r, y - r, r * 2, r * 2);
+      return true;
+    }
+
     return false;
   }
 
@@ -333,7 +393,7 @@ class SpriteManager {
     x2: number,
     y2: number,
     radius: number
-  ) {
+  ): boolean {
     const img = this.images['tuberias_dianas_bombas'];
     if (img && img.complete && img.naturalWidth > 0) {
       const dx = x2 - x1;
@@ -347,7 +407,6 @@ class SpriteManager {
       ctx.save();
       ctx.translate(x1, y1);
       ctx.rotate(angle);
-      // Row 0, Col 0: Straight Pipe
       ctx.drawImage(img, 0, 0, sw, sh, 0, -radius, len, radius * 2);
       ctx.restore();
       return true;
@@ -362,7 +421,7 @@ class SpriteManager {
     y: number,
     r: number,
     isSpecial: boolean
-  ) {
+  ): boolean {
     const img = this.images['tuberias_dianas_bombas'];
     if (img && img.complete && img.naturalWidth > 0) {
       const col = isSpecial ? 2 : 0; // Col 2 = Yellow, Col 0 = Red
@@ -381,7 +440,7 @@ class SpriteManager {
     x: number,
     y: number,
     r: number
-  ) {
+  ): boolean {
     const img = this.images['tuberias_dianas_bombas'];
     if (img && img.complete && img.naturalWidth > 0) {
       const sw = img.naturalWidth / 6;

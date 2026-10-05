@@ -29,7 +29,7 @@ export const GAME_CONSTANTS = {
   GRAVITY: 960,
   DEFAULT_BALL_RADIUS: 12.5,
   TERMINAL_VELOCITY: 1200,
-  RESTITUTION: 0.68,
+  RESTITUTION: 0.782, // 0.68 * 1.15 (+15% bounce)
   FRICTION: 0.990,
 
   // Manual Emergency Tap Control

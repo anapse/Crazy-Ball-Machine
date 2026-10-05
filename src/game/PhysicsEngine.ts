@@ -171,7 +171,17 @@ export class PhysicsEngine {
           }
         }
 
-        // Single loss exit hole at bottom
+        // Solid Bottom Wooden Floor with central exit hole
+        if (ball.y > GAME_CONSTANTS.WORLD_HEIGHT - 50) {
+          const isOverHole = Math.abs(ball.x - GAME_CONSTANTS.LOSS_HOLE_X) < GAME_CONSTANTS.LOSS_HOLE_RADIUS + 8;
+          if (!isOverHole) {
+            ball.y = GAME_CONSTANTS.WORLD_HEIGHT - 50;
+            ball.vy = -Math.abs(ball.vy) * GAME_CONSTANTS.RESTITUTION;
+            soundManager.playWoodBounce(0.5);
+          }
+        }
+
+        // Single loss exit hole at bottom center
         const holeDist = Math.hypot(ball.x - GAME_CONSTANTS.LOSS_HOLE_X, ball.y - GAME_CONSTANTS.LOSS_HOLE_Y);
         if (holeDist < GAME_CONSTANTS.LOSS_HOLE_RADIUS + ball.radius) {
           ball.active = false;

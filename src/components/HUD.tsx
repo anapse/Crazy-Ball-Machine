@@ -89,22 +89,22 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </div>
 
-      {/* Bottom Power-Ups Bar (Compact, Wraps in 2 rows if necessary) */}
+      {/* Bottom Power-Ups Bar (SQUARE UNIFORM TILES) */}
       {hasPowerups && (
-        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1 pb-1 w-full max-w-full">
-          <div className="wood-panel px-1.5 py-0.5 rounded-xl flex flex-wrap items-center justify-center gap-1 border-amber-700/80 shadow-xl backdrop-blur-md max-w-full">
+        <div className="pointer-events-auto flex items-center justify-center pb-1 w-full max-w-full">
+          <div className="wood-panel p-1 rounded-2xl flex items-center justify-center gap-1.5 border-amber-700/80 shadow-2xl backdrop-blur-md">
             {inventory.double > 0 && (
               <button
                 onClick={() => onSelectPowerUp('double')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-extrabold border transition-all ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
                   activePowerUp === 'double'
-                    ? 'bg-amber-500 text-stone-950 border-white shadow scale-105 ring-1 ring-yellow-300'
-                    : 'bg-stone-900/80 text-amber-200 border-amber-700 hover:bg-stone-800'
+                    ? 'bg-amber-500/90 border-white shadow-lg scale-105 ring-2 ring-yellow-300'
+                    : 'bg-stone-900/90 border-amber-700/80 hover:bg-stone-800'
                 }`}
+                title="Bola Doble"
               >
-                <SpriteIcon name="double" className="w-4 h-4" />
-                <span>x2</span>
-                <span className="text-[8px] bg-amber-950 px-0.5 rounded border border-amber-700">
+                <SpriteIcon name="double" className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-black bg-amber-950 text-amber-200 px-1 rounded-full border border-amber-600 shadow">
                   {inventory.double}
                 </span>
               </button>
@@ -113,15 +113,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.triple > 0 && (
               <button
                 onClick={() => onSelectPowerUp('triple')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-extrabold border transition-all ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
                   activePowerUp === 'triple'
-                    ? 'bg-sky-500 text-stone-950 border-white shadow scale-105 ring-1 ring-sky-300'
-                    : 'bg-stone-900/80 text-sky-200 border-sky-700 hover:bg-stone-800'
+                    ? 'bg-sky-500/90 border-white shadow-lg scale-105 ring-2 ring-sky-300'
+                    : 'bg-stone-900/90 border-sky-700/80 hover:bg-stone-800'
                 }`}
+                title="Bola Triple"
               >
-                <SpriteIcon name="triple" className="w-4 h-4" />
-                <span>x3</span>
-                <span className="text-[8px] bg-sky-950 px-0.5 rounded border border-sky-700">
+                <SpriteIcon name="triple" className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-black bg-sky-950 text-sky-200 px-1 rounded-full border border-sky-600 shadow">
                   {inventory.triple}
                 </span>
               </button>
@@ -130,15 +130,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.fast > 0 && (
               <button
                 onClick={() => onSelectPowerUp('fast')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-extrabold border transition-all ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
                   activePowerUp === 'fast'
-                    ? 'bg-orange-500 text-stone-950 border-white shadow scale-105 ring-1 ring-orange-300'
-                    : 'bg-stone-900/80 text-orange-200 border-orange-700 hover:bg-stone-800'
+                    ? 'bg-orange-500/90 border-white shadow-lg scale-105 ring-2 ring-orange-300'
+                    : 'bg-stone-900/90 border-orange-700/80 hover:bg-stone-800'
                 }`}
+                title="Bola Veloz"
               >
-                <SpriteIcon name="fast" className="w-4 h-4" />
-                <span>VELOZ</span>
-                <span className="text-[8px] bg-orange-950 px-0.5 rounded border border-orange-700">
+                <SpriteIcon name="fast" className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-black bg-orange-950 text-orange-200 px-1 rounded-full border border-orange-600 shadow">
                   {inventory.fast}
                 </span>
               </button>
@@ -147,15 +147,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.explosive > 0 && (
               <button
                 onClick={() => onSelectPowerUp('explosive')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-extrabold border transition-all ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
                   activePowerUp === 'explosive'
-                    ? 'bg-red-600 text-white border-white shadow scale-105 ring-1 ring-red-400'
-                    : 'bg-stone-900/80 text-red-200 border-red-700 hover:bg-stone-800'
+                    ? 'bg-red-600/90 border-white shadow-lg scale-105 ring-2 ring-red-400'
+                    : 'bg-stone-900/90 border-red-700/80 hover:bg-stone-800'
                 }`}
+                title="Bola Bomba"
               >
-                <SpriteIcon name="explosive" className="w-4 h-4" />
-                <span>BOMBA</span>
-                <span className="text-[8px] bg-red-950 px-0.5 rounded border border-red-700">
+                <SpriteIcon name="explosive" className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-black bg-red-950 text-red-200 px-1 rounded-full border border-red-600 shadow">
                   {inventory.explosive}
                 </span>
               </button>
@@ -164,15 +164,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.shield > 0 && (
               <button
                 onClick={() => onSelectPowerUp('shield')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-extrabold border transition-all ${
+                className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
                   activePowerUp === 'shield'
-                    ? 'bg-purple-600 text-white border-white shadow scale-105 ring-1 ring-purple-400'
-                    : 'bg-stone-900/80 text-purple-200 border-purple-700 hover:bg-stone-800'
+                    ? 'bg-purple-600/90 border-white shadow-lg scale-105 ring-2 ring-purple-400'
+                    : 'bg-stone-900/90 border-purple-700/80 hover:bg-stone-800'
                 }`}
+                title="Bola Escudo"
               >
-                <SpriteIcon name="shield" className="w-4 h-4" />
-                <span>ESCUDO</span>
-                <span className="text-[8px] bg-purple-950 px-0.5 rounded border border-purple-700">
+                <SpriteIcon name="shield" className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-black bg-purple-950 text-purple-200 px-1 rounded-full border border-purple-600 shadow">
                   {inventory.shield}
                 </span>
               </button>

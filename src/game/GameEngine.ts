@@ -478,12 +478,12 @@ export class GameEngine {
     const scaleY = this.canvas.height / h;
     ctx.scale(scaleX, scaleY);
 
-    // Render Old Carnival Wooden Backboard
-    this.renderCarnivalBackboard(ctx);
-
     // Apply Camera Translation
     ctx.save();
     ctx.translate(0, -this.camera.y);
+
+    // Single Official fondo.png background sprite covering the machine world height
+    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.WORLD_HEIGHT);
 
     // Render Background Details & Machinery
     this.renderMachineStructure(ctx);
@@ -558,6 +558,21 @@ export class GameEngine {
     const r = GAME_CONSTANTS.LOSS_HOLE_RADIUS;
 
     ctx.save();
+
+    // Solid wooden bottom floor across the machine width except for central loss hole
+    ctx.fillStyle = '#291508';
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 3;
+
+    // Left floor plank
+    ctx.fillRect(0, ly - 10, lx - r, 30);
+    ctx.strokeRect(0, ly - 10, lx - r, 30);
+
+    // Right floor plank
+    ctx.fillRect(lx + r, ly - 10, GAME_CONSTANTS.WORLD_WIDTH - (lx + r), 30);
+    ctx.strokeRect(lx + r, ly - 10, GAME_CONSTANTS.WORLD_WIDTH - (lx + r), 30);
+
+    // Precise Central Exit Hole
     ctx.shadowColor = '#ef4444';
     ctx.shadowBlur = 12;
 
@@ -1319,7 +1334,7 @@ export class GameEngine {
       ctx.fill();
     }
 
-    const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius);
+    const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius, ball.type);
     if (!drawn) {
       this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, ball.type, false);
     }
