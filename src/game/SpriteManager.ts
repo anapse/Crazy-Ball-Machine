@@ -5,18 +5,18 @@ class SpriteManager {
   private loaded: boolean = false;
 
   private assetPaths: Record<string, string> = {
-    fondo: '/assets/sprites/fondo.png',
-    logo: '/assets/sprites/logo.png',
-    ladrillos: '/assets/sprites/ladrillos.png',
-    cajas: '/assets/sprites/cajas.png',
-    globos: '/assets/sprites/globos.png',
-    flechas: '/assets/sprites/flechas.png',
-    aceite: '/assets/sprites/aceite.png',
-    aspa_engranaje: '/assets/sprites/aspa_engranaje.png',
-    trampolin: '/assets/sprites/trampolin.png',
-    trabesanos: '/assets/sprites/trabesaños.png',
-    pelota: '/assets/sprites/pelota.png',
-    bolas: '/assets/sprites/bolas.png',
+    fondo: 'assets/sprites/fondo.png',
+    logo: 'assets/sprites/logo.png',
+    ladrillos: 'assets/sprites/ladrillos.png',
+    cajas: 'assets/sprites/cajas.png',
+    globos: 'assets/sprites/globos.png',
+    flechas: 'assets/sprites/flechas.png',
+    aceite: 'assets/sprites/aceite.png',
+    aspa_engranaje: 'assets/sprites/aspa_engranaje.png',
+    trampolin: 'assets/sprites/trampolin.png',
+    trabesanos: 'assets/sprites/trabesanos.png',
+    pelota: 'assets/sprites/pelota.png',
+    bolas: 'assets/sprites/bolas.png',
   };
 
   public loadAll(): Promise<void> {

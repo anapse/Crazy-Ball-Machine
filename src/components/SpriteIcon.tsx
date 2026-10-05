@@ -8,10 +8,7 @@ interface SpriteIconProps {
   size?: number;
 }
 
-export const SpriteIcon: React.FC<SpriteIconProps> = ({ name, className = 'w-6 h-6', size }) => {
-  // Mapping coordinates in 4x4 grid of bolas.png
-  // Each cell is 25% width and 25% height
-  // backgroundPosition = `${col * 33.333}% ${row * 33.333}%` with backgroundSize = '400% 400%'
+export const SpriteIcon: React.FC<SpriteIconProps> = ({ name, className = 'w-5 h-5', size }) => {
   let posX = '0%';
   let posY = '0%';
 
@@ -43,7 +40,7 @@ export const SpriteIcon: React.FC<SpriteIconProps> = ({ name, className = 'w-6 h
   }
 
   const style: React.CSSProperties = {
-    backgroundImage: 'url(/assets/sprites/bolas.png)',
+    backgroundImage: 'url(assets/sprites/bolas.png)',
     backgroundPosition: `${posX} ${posY}`,
     backgroundSize: '400% 400%',
     width: size ? `${size}px` : undefined,

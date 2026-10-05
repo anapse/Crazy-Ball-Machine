@@ -46,7 +46,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <div className="flex flex-col items-center text-center my-auto">
         <div className="my-1 relative flex justify-center">
           <img
-            src="/assets/sprites/logo.png"
+            src="assets/sprites/logo.png"
             alt="Crazy Ball Machine"
             className="w-64 max-w-full h-auto drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] transition-transform hover:scale-105"
             onError={(e) => {
