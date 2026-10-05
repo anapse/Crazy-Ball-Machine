@@ -6,6 +6,9 @@ import {
   BreakableBlock,
   Ramp,
   PipeChute,
+  PinballBumper,
+  WindmillPropeller,
+  DirectionArrow,
   MovingBar,
   LeverObstacle,
   Trampoline,
@@ -104,6 +107,18 @@ export class PhysicsEngine {
 
             case 'pipe':
               this.handlePipeCollision(ball, obj as PipeChute);
+              break;
+
+            case 'bumper':
+              this.handleBumperCollision(ball, obj as PinballBumper, onEvent);
+              break;
+
+            case 'windmill':
+              this.handleWindmillCollision(ball, obj as WindmillPropeller, subDt);
+              break;
+
+            case 'arrow':
+              this.handleArrowBoost(ball, obj as DirectionArrow, subDt, onEvent);
               break;
 
             case 'moving_bar':
@@ -654,42 +669,45 @@ export class PhysicsEngine {
     box: PrizeBox,
     onEvent: (ev: PhysicsEvent) => void
   ) {
+    if (box.opened || box.destroyed) return;
+
     const halfW = box.width / 2;
     const halfH = box.height / 2;
     const dx = ball.x - box.x;
     const dy = ball.y - box.y;
 
     if (Math.abs(dx) < halfW + ball.radius && Math.abs(dy) < halfH + ball.radius) {
-      if (!box.opened) {
-        box.opened = true;
-        soundManager.playBoxOpen();
-        this.createSparks(box.x, box.y, '#f59e0b', 16);
+      box.opened = true;
+      box.destroyed = true; // Disappears so space becomes free!
 
-        let rewardText = `+${box.points} PTS`;
-        if (box.reward === 'ball_1') rewardText = '+1 BOLA 🟡';
-        else if (box.reward === 'ball_2') rewardText = '+2 BOLAS 🟡🟡';
-        else if (box.reward === 'ball_3') rewardText = '+3 BOLAS 🟡🟡🟡';
-        else if (box.reward === 'power_double') rewardText = 'BOLA DOBLE ✨';
-        else if (box.reward === 'power_triple') rewardText = 'BOLA TRIPLE 💥';
-        else if (box.reward === 'power_fast') rewardText = 'BOLA RÁPIDA ⚡';
-        else if (box.reward === 'power_explosive') rewardText = 'BOLA BOMBA 💣';
-        else if (box.reward === 'power_shield') rewardText = 'BOLA INVENCIBLE 🛡️';
-        else if (box.reward === 'points_500') rewardText = '+500 PTS ⭐';
+      soundManager.playBoxOpen();
+      this.createSparks(box.x, box.y, '#f59e0b', 16);
 
-        this.addFloatingText(rewardText, box.x, box.y - 30, '#facc15');
+      let rewardText = `+${box.points} PTS`;
+      if (box.reward === 'ball_1') rewardText = '+1 BOLA 🟡';
+      else if (box.reward === 'ball_2') rewardText = '+2 BOLAS 🟡🟡';
+      else if (box.reward === 'ball_3') rewardText = '+3 BOLAS 🟡🟡🟡';
+      else if (box.reward === 'power_double') rewardText = 'BOLA DOBLE ✨';
+      else if (box.reward === 'power_triple') rewardText = 'BOLA TRIPLE 💥';
+      else if (box.reward === 'power_fast') rewardText = 'BOLA RÁPIDA ⚡';
+      else if (box.reward === 'power_explosive') rewardText = 'BOLA BOMBA 💣';
+      else if (box.reward === 'power_shield') rewardText = 'BOLA INVENCIBLE 🛡️';
+      else if (box.reward === 'points_500') rewardText = '+500 PTS ⭐';
 
-        onEvent({
-          type: 'BOX_OPENED',
-          points: box.points || GAME_CONSTANTS.POINTS_BOX,
-          boxReward: box.reward,
-          x: box.x,
-          y: box.y,
-          text: rewardText,
-        });
-      }
+      this.addFloatingText(rewardText, box.x, box.y - 30, '#facc15');
 
-      ball.active = false;
-      onEvent({ type: 'BALL_LOST', points: 0 });
+      // Physical ricochet bounce off the box
+      ball.vy = -Math.abs(ball.vy || 220) * 0.75;
+      ball.vx += (Math.random() - 0.5) * 160;
+
+      onEvent({
+        type: 'BOX_OPENED',
+        points: box.points || GAME_CONSTANTS.POINTS_BOX,
+        boxReward: box.reward,
+        x: box.x,
+        y: box.y,
+        text: rewardText,
+      });
     }
   }
 
@@ -826,6 +844,86 @@ export class PhysicsEngine {
       pipe.radius * 2 || 24,
       pipe.boostSpeed || 60
     );
+  }
+
+  private handleBumperCollision(
+    ball: Ball,
+    bumper: PinballBumper,
+    onEvent: (ev: PhysicsEvent) => void
+  ) {
+    const dist = Math.hypot(ball.x - bumper.x, ball.y - bumper.y);
+    const minDist = ball.radius + bumper.radius;
+
+    if (dist < minDist && dist > 0) {
+      const nx = (ball.x - bumper.x) / dist;
+      const ny = (ball.y - bumper.y) / dist;
+
+      ball.x = bumper.x + nx * minDist;
+      ball.y = bumper.y + ny * minDist;
+
+      const force = bumper.bounceForce || 640;
+      ball.vx = nx * force;
+      ball.vy = ny * force;
+
+      bumper.hitTimer = 0.25;
+      soundManager.playBumperHit();
+      this.createSparks(bumper.x, bumper.y, '#f59e0b', 12);
+      this.addFloatingText(`+${bumper.points || GAME_CONSTANTS.POINTS_BUMPER}`, bumper.x, bumper.y - 15, '#facc15');
+
+      onEvent({
+        type: 'OBJECT_DESTROYED',
+        points: bumper.points || GAME_CONSTANTS.POINTS_BUMPER,
+        x: bumper.x,
+        y: bumper.y,
+      });
+    }
+  }
+
+  private handleWindmillCollision(ball: Ball, wm: WindmillPropeller, dt: number) {
+    wm.angle = (wm.angle || 0) + (wm.rotationSpeed || 1.2) * dt;
+    const dist = Math.hypot(ball.x - wm.x, ball.y - wm.y);
+    const reach = wm.armLength || 45;
+
+    if (dist < reach + ball.radius) {
+      const armAngleStep = (Math.PI * 2) / (wm.arms || 4);
+      for (let i = 0; i < (wm.arms || 4); i++) {
+        const armAng = (wm.angle || 0) + i * armAngleStep;
+        const armX2 = wm.x + Math.cos(armAng) * reach;
+        const armY2 = wm.y + Math.sin(armAng) * reach;
+
+        const hit = this.handleSegmentCollision(ball, wm.x, wm.y, armX2, armY2, wm.thickness || 10, 45);
+        if (hit) {
+          soundManager.playWindmillClack();
+          this.createSparks(ball.x, ball.y, '#f59e0b', 5);
+          break;
+        }
+      }
+    }
+  }
+
+  private handleArrowBoost(
+    ball: Ball,
+    arrow: DirectionArrow,
+    dt: number,
+    onEvent: (ev: PhysicsEvent) => void
+  ) {
+    const halfW = arrow.width / 2;
+    const halfH = arrow.height / 2;
+    const dx = ball.x - arrow.x;
+    const dy = ball.y - arrow.y;
+
+    if (Math.abs(dx) < halfW + ball.radius && Math.abs(dy) < halfH + ball.radius) {
+      ball.vx += arrow.forceX * dt;
+      ball.vy += arrow.forceY * dt;
+
+      if (!ball.boostedByOil) {
+        soundManager.playArrowBoost();
+        this.addFloatingText('⚡ FLECHA IMPULSO', arrow.x, arrow.y - 15, '#f59e0b');
+        this.createSparks(ball.x, ball.y, '#f59e0b', 6);
+        ball.boostedByOil = true;
+        onEvent({ type: 'OBJECT_DESTROYED', points: GAME_CONSTANTS.POINTS_ARROW, x: arrow.x, y: arrow.y });
+      }
+    }
   }
 
   public addFloatingText(text: string, x: number, y: number, color = '#fbbf24') {

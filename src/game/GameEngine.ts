@@ -12,6 +12,7 @@ import { Camera } from './Camera';
 import { PhysicsEngine, PhysicsEvent } from './PhysicsEngine';
 import { LevelManager } from './LevelManager';
 import { soundManager } from '../audio/soundManager';
+import { spriteManager } from './SpriteManager';
 import { storage } from '../utils/storage';
 import { leaderboardService } from '../utils/leaderboardService';
 import confetti from 'canvas-confetti';
@@ -401,17 +402,12 @@ export class GameEngine {
 
     if (ev.type === 'OBJECT_DESTROYED' || ev.type === 'TARGET_HIT') {
       this.objectsDestroyedCount++;
-      this.levelConfig.goal.current++;
-
-      // Check level goal completion
-      if (this.levelConfig.goal.current >= this.levelConfig.goal.target) {
-        if (this.phase !== 'LEVEL_COMPLETE') {
-          this.triggerVictory();
-        }
-      }
     }
 
-    if (ev.type === 'BOX_OPENED' && ev.boxReward) {
+    if (ev.type === 'BOX_OPENED') {
+      this.objectsDestroyedCount++;
+      this.levelConfig.goal.current++;
+
       soundManager.playPowerUpCollect();
       if (ev.boxReward === 'ball_1') this.ballsLeft += 1;
       else if (ev.boxReward === 'ball_2') this.ballsLeft += 2;
@@ -422,6 +418,13 @@ export class GameEngine {
       else if (ev.boxReward === 'power_explosive') this.inventory.explosive++;
       else if (ev.boxReward === 'power_shield') this.inventory.shield++;
       else if (ev.boxReward === 'points_500') this.score += 500;
+
+      // Check level goal completion (7/7 boxes destroyed)
+      if (this.levelConfig.goal.current >= this.levelConfig.goal.target) {
+        if (this.phase !== 'LEVEL_COMPLETE') {
+          this.triggerVictory();
+        }
+      }
     }
 
     this.emitState();
@@ -587,31 +590,8 @@ export class GameEngine {
   }
 
   private renderCarnivalBackboard(ctx: CanvasRenderingContext2D) {
-    // Rich aged wood planks background
-    const grad = ctx.createLinearGradient(0, 0, 0, GAME_CONSTANTS.VIEWPORT_HEIGHT);
-    grad.addColorStop(0, '#3a200e');
-    grad.addColorStop(0.5, '#281508');
-    grad.addColorStop(1, '#1a0d05');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.VIEWPORT_HEIGHT);
-
-    // Vertical wooden panel seams & brass studs
-    ctx.strokeStyle = '#180a03';
-    ctx.lineWidth = 2;
-    for (let x = 45; x < GAME_CONSTANTS.WORLD_WIDTH; x += 45) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, GAME_CONSTANTS.VIEWPORT_HEIGHT);
-      ctx.stroke();
-
-      // Brass studs
-      ctx.fillStyle = '#b45309';
-      for (let y = 30; y < GAME_CONSTANTS.VIEWPORT_HEIGHT; y += 120) {
-        ctx.beginPath();
-        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    // Official fondo.png background sprite
+    spriteManager.drawBackground(ctx, GAME_CONSTANTS.WORLD_WIDTH, GAME_CONSTANTS.VIEWPORT_HEIGHT);
 
     // Machine Side Metal Rails
     ctx.fillStyle = '#475569';
@@ -834,6 +814,108 @@ export class GameEngine {
         break;
       }
 
+      case 'bumper': {
+        const rad = (obj as any).radius || 18;
+        ctx.save();
+        ctx.translate(obj.x, obj.y);
+
+        // Bumper outer glow when hit
+        if (obj.hitTimer && obj.hitTimer > 0) {
+          ctx.shadowColor = '#facc15';
+          ctx.shadowBlur = 18;
+        }
+
+        // Bumper base body
+        const bGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, rad);
+        bGrad.addColorStop(0, '#fef08a');
+        bGrad.addColorStop(0.4, '#eab308');
+        bGrad.addColorStop(1, '#854d0e');
+
+        ctx.fillStyle = bGrad;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner cap ring
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(0, 0, rad * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+        break;
+      }
+
+      case 'windmill': {
+        ctx.save();
+        ctx.translate(obj.x, obj.y);
+        ctx.rotate(obj.angle || 0);
+
+        const arms = (obj as any).arms || 4;
+        const len = (obj as any).armLength || 40;
+        const armStep = (Math.PI * 2) / arms;
+
+        // Propeller blades
+        for (let i = 0; i < arms; i++) {
+          ctx.rotate(armStep);
+          ctx.fillStyle = i % 2 === 0 ? '#38bdf8' : '#1e3a8a';
+          ctx.strokeStyle = '#e0f2fe';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(-4, 0, 8, len, 4);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Center hub
+        ctx.fillStyle = '#f59e0b';
+        ctx.strokeStyle = '#451a03';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+        break;
+      }
+
+      case 'arrow': {
+        const w = (obj as any).width || 36;
+        const h = (obj as any).height || 36;
+        ctx.save();
+        ctx.translate(obj.x, obj.y);
+        ctx.rotate((obj as any).angle || 0);
+
+        // Arrow pad box
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-w / 2, -h / 2, w, h, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Chevron arrow indicator
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.moveTo(0, -h * 0.35);
+        ctx.lineTo(w * 0.3, h * 0.2);
+        ctx.lineTo(w * 0.12, h * 0.2);
+        ctx.lineTo(w * 0.12, h * 0.35);
+        ctx.lineTo(-w * 0.12, h * 0.35);
+        ctx.lineTo(-w * 0.12, h * 0.2);
+        ctx.lineTo(-w * 0.3, h * 0.2);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+        break;
+      }
+
       case 'pipe': {
         const x2 = (obj as any).x2 ?? obj.x + 80;
         const y2 = (obj as any).y2 ?? obj.y + 60;
@@ -953,37 +1035,33 @@ export class GameEngine {
       }
 
       case 'breakable_block': {
-        const x = obj.x - obj.width / 2;
-        const y = obj.y - obj.height / 2;
+        const drawn = spriteManager.drawBlock(ctx, obj.blockColor || 'rojo', obj.x, obj.y, obj.width, obj.height);
+        if (!drawn) {
+          const x = obj.x - obj.width / 2;
+          const y = obj.y - obj.height / 2;
 
-        const style = (obj.blockColor && BLOCK_COLOR_STYLES[obj.blockColor]) || {
-          fill: obj.health > 1 ? '#854d0e' : '#b45309',
-          stroke: '#fef08a',
-          light: '#ffffff',
-        };
+          const style = (obj.blockColor && BLOCK_COLOR_STYLES[obj.blockColor]) || {
+            fill: obj.health > 1 ? '#854d0e' : '#b45309',
+            stroke: '#fef08a',
+            light: '#ffffff',
+          };
 
-        ctx.fillStyle = style.fill;
-        ctx.strokeStyle = style.stroke;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(x, y, obj.width, obj.height, 5);
-        ctx.fill();
-        ctx.stroke();
+          ctx.fillStyle = style.fill;
+          ctx.strokeStyle = style.stroke;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(x, y, obj.width, obj.height, 5);
+          ctx.fill();
+          ctx.stroke();
 
-        // Inner frame accent
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.roundRect(x + 3, y + 3, obj.width - 6, obj.height - 6, 3);
-        ctx.stroke();
-
-        // Points / Health text
-        const pts = (obj.blockColor && BLOCK_COLOR_POINTS[obj.blockColor]) || obj.points || GAME_CONSTANTS.POINTS_BLOCK;
-        ctx.fillStyle = style.light || '#ffffff';
-        ctx.font = 'bold 11px Fredoka, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`+${pts}`, obj.x, obj.y);
+          // Points text
+          const pts = (obj.blockColor && BLOCK_COLOR_POINTS[obj.blockColor]) || obj.points || GAME_CONSTANTS.POINTS_BLOCK;
+          ctx.fillStyle = style.light || '#ffffff';
+          ctx.font = 'bold 11px Fredoka, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`+${pts}`, obj.x, obj.y);
+        }
         break;
       }
 
@@ -1104,23 +1182,26 @@ export class GameEngine {
       }
 
       case 'balloon': {
-        const floatY = Math.sin(Date.now() * 0.003 + obj.floatOffset) * 4;
-        ctx.save();
-        ctx.translate(obj.x, obj.y + floatY);
+        const drawn = spriteManager.drawBalloon(ctx, obj.color, obj.x, obj.y, obj.radius);
+        if (!drawn) {
+          const floatY = Math.sin(Date.now() * 0.003 + obj.floatOffset) * 4;
+          ctx.save();
+          ctx.translate(obj.x, obj.y + floatY);
 
-        ctx.fillStyle = obj.color;
-        ctx.shadowColor = obj.color;
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, obj.radius, obj.radius * 1.2, 0, 0, Math.PI * 2);
-        ctx.fill();
+          ctx.fillStyle = obj.color;
+          ctx.shadowColor = obj.color;
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, obj.radius, obj.radius * 1.2, 0, 0, Math.PI * 2);
+          ctx.fill();
 
-        // Highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.beginPath();
-        ctx.arc(-4, -6, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+          // Highlight
+          ctx.fillStyle = 'rgba(255,255,255,0.4)';
+          ctx.beginPath();
+          ctx.arc(-4, -6, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
         break;
       }
 
@@ -1175,40 +1256,43 @@ export class GameEngine {
       }
 
       case 'box': {
-        const x = obj.x - obj.width / 2;
-        const y = obj.y - obj.height / 2;
+        const drawn = spriteManager.drawBox(ctx, obj.reward, obj.opened, obj.x, obj.y, obj.width, obj.height);
+        if (!drawn) {
+          const x = obj.x - obj.width / 2;
+          const y = obj.y - obj.height / 2;
 
-        if (obj.opened) {
-          // Open empty wooden crate
-          ctx.fillStyle = '#291508';
-          ctx.strokeStyle = '#78350f';
-          ctx.lineWidth = 2;
-          ctx.fillRect(x, y, obj.width, obj.height);
-          ctx.strokeRect(x, y, obj.width, obj.height);
+          if (obj.opened) {
+            // Open empty wooden crate
+            ctx.fillStyle = '#291508';
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 2;
+            ctx.fillRect(x, y, obj.width, obj.height);
+            ctx.strokeRect(x, y, obj.width, obj.height);
 
-          ctx.fillStyle = '#a1a1aa';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('ABIERTA', obj.x, obj.y + 4);
-        } else {
-          // Mystery prize chest with glow
-          const boxColors = ['#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#10b981', '#f97316', '#ec4899'];
-          const col = boxColors[obj.boxIndex % boxColors.length];
+            ctx.fillStyle = '#a1a1aa';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('ABIERTA', obj.x, obj.y + 4);
+          } else {
+            // Mystery prize chest with glow
+            const boxColors = ['#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#10b981', '#f97316', '#ec4899'];
+            const col = boxColors[obj.boxIndex % boxColors.length];
 
-          ctx.fillStyle = col;
-          ctx.strokeStyle = '#fef08a';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.roundRect(x, y, obj.width, obj.height, 4);
-          ctx.fill();
-          ctx.stroke();
+            ctx.fillStyle = col;
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(x, y, obj.width, obj.height, 4);
+            ctx.fill();
+            ctx.stroke();
 
-          // Star / Question mark
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 20px Fredoka, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('🎁', obj.x, obj.y);
+            // Star / Question mark
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 20px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🎁', obj.x, obj.y);
+          }
         }
         break;
       }
@@ -1226,8 +1310,10 @@ export class GameEngine {
       ctx.fill();
     }
 
-    // Render 3D metallic sphere
-    this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, ball.type, false);
+    const drawn = spriteManager.drawBall(ctx, ball.x, ball.y, ball.radius);
+    if (!drawn) {
+      this.renderMetallicSphere(ctx, ball.x, ball.y, ball.radius, ball.type, false);
+    }
   }
 
   private renderParticles(ctx: CanvasRenderingContext2D) {

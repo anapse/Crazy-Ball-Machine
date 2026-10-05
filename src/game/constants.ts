@@ -2,9 +2,9 @@ export const BLOCK_COLOR_POINTS: Record<string, number> = {
   rojo: 10,
   azul: 25,
   verde: 40,
-  amarillo: 75,
-  morado: 100,
-  naranja: 150,
+  amarillo: 60,
+  naranja: 100,
+  morado: 150,
   rosa: 250,
 };
 
@@ -13,33 +13,33 @@ export const BLOCK_COLOR_STYLES: Record<string, { fill: string; stroke: string; 
   azul: { fill: '#3b82f6', stroke: '#93c5fd', light: '#dbeafe' },
   verde: { fill: '#10b981', stroke: '#6ee7b7', light: '#d1fae5' },
   amarillo: { fill: '#f59e0b', stroke: '#fde68a', light: '#fef3c7' },
-  morado: { fill: '#8b5cf6', stroke: '#c4b5fd', light: '#f3e8ff' },
   naranja: { fill: '#f97316', stroke: '#ffedd5', light: '#fff7ed' },
+  morado: { fill: '#8b5cf6', stroke: '#c4b5fd', light: '#f3e8ff' },
   rosa: { fill: '#ec4899', stroke: '#fbcfe8', light: '#fdf2f8' },
 };
 
 export const GAME_CONSTANTS = {
   WORLD_WIDTH: 450,
-  WORLD_HEIGHT: 2200, // Deep, long machine height
+  WORLD_HEIGHT: 2800, // Deep, long machine height
   VIEWPORT_WIDTH: 450,
   VIEWPORT_HEIGHT: 800,
   ASPECT_RATIO: 9 / 16,
 
   // Physics constants
-  GRAVITY: 950,
+  GRAVITY: 960,
   DEFAULT_BALL_RADIUS: 12.5,
-  TERMINAL_VELOCITY: 1150,
+  TERMINAL_VELOCITY: 1200,
   RESTITUTION: 0.68,
   FRICTION: 0.990,
 
   // Manual Emergency Tap Control
   TAP_COOLDOWN_SECONDS: 0.6,
-  TAP_IMPULSE_RADIUS: 42,
-  TAP_IMPULSE_FORCE: 380,
+  TAP_IMPULSE_RADIUS: 45,
+  TAP_IMPULSE_FORCE: 400,
 
   // Single Bottom Exit Loss Gap
   LOSS_HOLE_X: 225,
-  LOSS_HOLE_Y: 2125,
+  LOSS_HOLE_Y: 2720,
   LOSS_HOLE_RADIUS: 22,
 
   // Observation phase delay
@@ -70,12 +70,14 @@ export const GAME_CONSTANTS = {
   ],
 
   // Bottom Box positions (7 prize boxes at lower machine tier)
-  BOTTOM_BOX_Y: 2020,
+  BOTTOM_BOX_Y: 2620,
   BOTTOM_BOX_WIDTH: 52,
   BOTTOM_BOX_HEIGHT: 50,
 
   // Points
   POINTS_BLOCK: 20,
+  POINTS_BUMPER: 30,
+  POINTS_ARROW: 15,
   POINTS_TARGET: 100,
   POINTS_BALLOON: 30,
   POINTS_BOMB: 15,

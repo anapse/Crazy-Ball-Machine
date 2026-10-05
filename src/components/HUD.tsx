@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameSnapshot, BallType } from '../types/game';
-import { Pause, Volume2, VolumeX, Flame, Zap, Shield, Sparkles } from 'lucide-react';
+import { Pause, Volume2, VolumeX } from 'lucide-react';
+import { SpriteIcon } from './SpriteIcon';
 
 interface HUDProps {
   state: GameSnapshot;
@@ -34,33 +35,30 @@ export const HUD: React.FC<HUDProps> = ({
     inventory.shield > 0;
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-1.5 select-none z-20 overflow-hidden w-full h-full max-w-full">
-      {/* Top Header Bar - Fully responsive, zero clipping */}
-      <div className="flex items-center justify-between gap-1 pointer-events-auto w-full max-w-full">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-2 select-none z-20 overflow-hidden w-full h-full max-w-full">
+      {/* Sleek Top Header Bar */}
+      <div className="flex items-center justify-between gap-1.5 pointer-events-auto w-full max-w-full">
         {/* Level & Score Combined Badge */}
-        <div className="wood-panel px-2 py-1 rounded-xl flex items-center gap-1.5 border-amber-600/80 shadow-md shrink-0">
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-amber-300 bg-amber-950/90 px-1 py-0.5 rounded border border-amber-700/60 whitespace-nowrap">
-            LVL {levelNumber}
+        <div className="wood-panel px-2.5 py-1 rounded-xl flex items-center gap-2 border-amber-600/80 shadow-lg shrink-0">
+          <span className="text-[10px] uppercase font-black text-amber-300 bg-amber-950/90 px-1.5 py-0.5 rounded border border-amber-700/60 whitespace-nowrap">
+            NIVEL {levelNumber}
           </span>
-          <div className="flex flex-col items-start leading-none">
-            <span className="text-[8px] uppercase text-amber-200/70 font-bold">PTS</span>
-            <span className="text-xs sm:text-sm font-carnival gold-text font-bold whitespace-nowrap">
-              {score.toLocaleString()}
-            </span>
-          </div>
+          <span className="text-sm font-carnival gold-text font-bold whitespace-nowrap tracking-wide">
+            {score.toLocaleString()}
+          </span>
         </div>
 
         {/* Goal / Objective Progress Badge */}
-        <div className="wood-panel px-2 py-1 rounded-xl flex flex-col items-center min-w-[90px] max-w-[130px] flex-1 border-amber-600/80 shadow-md">
-          <div className="flex items-center justify-between w-full text-[9px] font-bold text-amber-100 leading-tight">
-            <span className="truncate">OBJ</span>
-            <span className="text-yellow-300 font-carnival text-xs ml-1 whitespace-nowrap">
+        <div className="wood-panel px-2.5 py-1 rounded-xl flex flex-col items-center min-w-[95px] max-w-[140px] flex-1 border-amber-600/80 shadow-lg">
+          <div className="flex items-center justify-between w-full text-[10px] font-bold text-amber-100 leading-tight">
+            <span className="text-amber-200">CAJAS</span>
+            <span className="text-yellow-300 font-carnival text-xs font-black ml-1 whitespace-nowrap">
               {goalProgress}/{goalTarget}
             </span>
           </div>
-          <div className="w-full bg-stone-900 h-1.5 rounded-full mt-0.5 overflow-hidden border border-amber-900/60">
+          <div className="w-full bg-stone-950 h-1.5 rounded-full mt-1 overflow-hidden border border-amber-900/60">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-300"
+              className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300 rounded-full"
               style={{ width: `${Math.min(100, (goalProgress / goalTarget) * 100)}%` }}
             />
           </div>
@@ -68,9 +66,9 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Balls Left & Controls */}
         <div className="flex items-center gap-1 shrink-0">
-          <div className="wood-panel px-1.5 py-1 rounded-xl flex items-center gap-1 border-amber-600/80 shadow-md">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-slate-200 via-slate-400 to-slate-800 border border-slate-300 shadow-sm shrink-0" />
-            <span className="text-xs font-carnival text-amber-200 whitespace-nowrap font-bold">x{ballsLeft}</span>
+          <div className="wood-panel px-2 py-1 rounded-xl flex items-center gap-1.5 border-amber-600/80 shadow-lg">
+            <SpriteIcon name="ball" className="w-5 h-5" />
+            <span className="text-xs font-carnival text-amber-200 whitespace-nowrap font-extrabold">x{ballsLeft}</span>
           </div>
 
           <button
@@ -91,22 +89,22 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </div>
 
-      {/* Bottom Power-Ups Bar (Compact strip) */}
+      {/* Bottom Power-Ups Bar with Official Sprite Icons */}
       {hasPowerups && (
-        <div className="pointer-events-auto flex items-center justify-center gap-1 pb-1 w-full max-w-full overflow-x-auto">
-          <div className="wood-panel px-1.5 py-1 rounded-2xl flex items-center gap-1 border-amber-700/80 shadow-xl backdrop-blur-sm">
+        <div className="pointer-events-auto flex items-center justify-center gap-1.5 pb-1 w-full max-w-full overflow-x-auto">
+          <div className="wood-panel px-2 py-1 rounded-2xl flex items-center gap-1.5 border-amber-700/80 shadow-2xl backdrop-blur-md">
             {inventory.double > 0 && (
               <button
                 onClick={() => onSelectPowerUp('double')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-bold border transition-all ${
+                className={`relative px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold border transition-all ${
                   activePowerUp === 'double'
-                    ? 'bg-amber-500 text-stone-950 border-white shadow scale-105 ring-2 ring-yellow-300'
-                    : 'bg-stone-900/80 text-amber-200 border-amber-700'
+                    ? 'bg-amber-500 text-stone-950 border-white shadow-lg scale-105 ring-2 ring-yellow-300'
+                    : 'bg-stone-900/80 text-amber-200 border-amber-700 hover:bg-stone-800'
                 }`}
               >
-                <Sparkles size={11} />
+                <SpriteIcon name="double" className="w-5 h-5" />
                 <span>x2</span>
-                <span className="text-[8px] bg-amber-900/80 px-1 rounded-full">
+                <span className="text-[9px] bg-amber-950 px-1 rounded-full border border-amber-700">
                   {inventory.double}
                 </span>
               </button>
@@ -115,15 +113,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.triple > 0 && (
               <button
                 onClick={() => onSelectPowerUp('triple')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-bold border transition-all ${
+                className={`relative px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold border transition-all ${
                   activePowerUp === 'triple'
-                    ? 'bg-sky-500 text-stone-950 border-white shadow scale-105 ring-2 ring-sky-300'
-                    : 'bg-stone-900/80 text-sky-200 border-sky-700'
+                    ? 'bg-sky-500 text-stone-950 border-white shadow-lg scale-105 ring-2 ring-sky-300'
+                    : 'bg-stone-900/80 text-sky-200 border-sky-700 hover:bg-stone-800'
                 }`}
               >
-                <Sparkles size={11} />
+                <SpriteIcon name="triple" className="w-5 h-5" />
                 <span>x3</span>
-                <span className="text-[8px] bg-sky-900/80 px-1 rounded-full">
+                <span className="text-[9px] bg-sky-950 px-1 rounded-full border border-sky-700">
                   {inventory.triple}
                 </span>
               </button>
@@ -132,15 +130,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.fast > 0 && (
               <button
                 onClick={() => onSelectPowerUp('fast')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-bold border transition-all ${
+                className={`relative px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold border transition-all ${
                   activePowerUp === 'fast'
-                    ? 'bg-orange-500 text-stone-950 border-white shadow scale-105 ring-2 ring-orange-300'
-                    : 'bg-stone-900/80 text-orange-200 border-orange-700'
+                    ? 'bg-orange-500 text-stone-950 border-white shadow-lg scale-105 ring-2 ring-orange-300'
+                    : 'bg-stone-900/80 text-orange-200 border-orange-700 hover:bg-stone-800'
                 }`}
               >
-                <Zap size={11} />
+                <SpriteIcon name="fast" className="w-5 h-5" />
                 <span>VELOZ</span>
-                <span className="text-[8px] bg-orange-900/80 px-1 rounded-full">
+                <span className="text-[9px] bg-orange-950 px-1 rounded-full border border-orange-700">
                   {inventory.fast}
                 </span>
               </button>
@@ -149,15 +147,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.explosive > 0 && (
               <button
                 onClick={() => onSelectPowerUp('explosive')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-bold border transition-all ${
+                className={`relative px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold border transition-all ${
                   activePowerUp === 'explosive'
-                    ? 'bg-red-600 text-white border-white shadow scale-105 ring-2 ring-red-400'
-                    : 'bg-stone-900/80 text-red-200 border-red-700'
+                    ? 'bg-red-600 text-white border-white shadow-lg scale-105 ring-2 ring-red-400'
+                    : 'bg-stone-900/80 text-red-200 border-red-700 hover:bg-stone-800'
                 }`}
               >
-                <Flame size={11} />
+                <SpriteIcon name="explosive" className="w-5 h-5" />
                 <span>BOMBA</span>
-                <span className="text-[8px] bg-red-900/80 px-1 rounded-full">
+                <span className="text-[9px] bg-red-950 px-1 rounded-full border border-red-700">
                   {inventory.explosive}
                 </span>
               </button>
@@ -166,15 +164,15 @@ export const HUD: React.FC<HUDProps> = ({
             {inventory.shield > 0 && (
               <button
                 onClick={() => onSelectPowerUp('shield')}
-                className={`relative px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 text-[10px] font-bold border transition-all ${
+                className={`relative px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold border transition-all ${
                   activePowerUp === 'shield'
-                    ? 'bg-purple-600 text-white border-white shadow scale-105 ring-2 ring-purple-400'
-                    : 'bg-stone-900/80 text-purple-200 border-purple-700'
+                    ? 'bg-purple-600 text-white border-white shadow-lg scale-105 ring-2 ring-purple-400'
+                    : 'bg-stone-900/80 text-purple-200 border-purple-700 hover:bg-stone-800'
                 }`}
               >
-                <Shield size={11} />
+                <SpriteIcon name="shield" className="w-5 h-5" />
                 <span>ESCUDO</span>
-                <span className="text-[8px] bg-purple-900/80 px-1 rounded-full">
+                <span className="text-[9px] bg-purple-950 px-1 rounded-full border border-purple-700">
                   {inventory.shield}
                 </span>
               </button>

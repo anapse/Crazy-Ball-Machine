@@ -20,6 +20,9 @@ export type PhysicalObjectType =
   | 'breakable_block'
   | 'ramp'
   | 'pipe'
+  | 'bumper'
+  | 'windmill'
+  | 'arrow'
   | 'trampoline'
   | 'fan'
   | 'oil'
@@ -100,6 +103,31 @@ export interface PipeChute extends BaseObject {
   boostSpeed?: number;
 }
 
+export interface PinballBumper extends BaseObject {
+  type: 'bumper';
+  radius: number;
+  bounceForce: number;
+  points: number;
+  hitTimer?: number;
+}
+
+export interface WindmillPropeller extends BaseObject {
+  type: 'windmill';
+  arms: number;
+  armLength: number;
+  thickness: number;
+  rotationSpeed: number;
+}
+
+export interface DirectionArrow extends BaseObject {
+  type: 'arrow';
+  width: number;
+  height: number;
+  forceX: number;
+  forceY: number;
+  angle: number;
+}
+
 export interface Ramp extends BaseObject {
   type: 'ramp';
   x2: number;
@@ -110,7 +138,6 @@ export interface Ramp extends BaseObject {
   cpY?: number;
   color?: string;
   speedBoost?: number;
-  // Dynamic original segment coordinates
   origX1?: number;
   origY1?: number;
   origX2?: number;
@@ -213,6 +240,9 @@ export type MachineObject =
   | BreakableBlock
   | Ramp
   | PipeChute
+  | PinballBumper
+  | WindmillPropeller
+  | DirectionArrow
   | MovingBar
   | LeverObstacle
   | Trampoline
