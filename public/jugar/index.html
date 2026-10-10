@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Abriendo juego | ANAPSE VIDEO GAMES</title>
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        if (!window.location.hostname.endsWith('github.io') || params.get('pw') === '16546203') {
+          const gameRoot = new URL('../', window.location.href);
+          gameRoot.search = '';
+          gameRoot.searchParams.set('pw', '16546203');
+          window.location.replace(gameRoot.href);
+        } else {
+          window.location.replace('https://anapsevideogame.click/');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Abriendo juego… <a href="https://anapsevideogame.click/">Volver a ANAPSE VIDEO GAMES</a></p>
+  </body>
+</html>
