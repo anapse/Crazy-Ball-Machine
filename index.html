@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="es">
   <head>
+    <script>
+      // Open the game only when launched from ANAPSE VIDEO GAMES.
+      (() => {
+        if (!window.location.hostname.endsWith('github.io')) return;
+        if (new URLSearchParams(window.location.search).get('pw') !== '16546203') {
+          window.location.replace('https://anapsevideogame.click/');
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Crazy Ball Machine</title>
